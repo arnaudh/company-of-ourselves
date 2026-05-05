@@ -14,6 +14,8 @@ class MainScene extends Phaser.Scene {
     this.player = null;
     this.cursors = null;
     this.speed = 170;
+    this.jumpSpeed = 430;
+    this.ground = null;
     this.musicQueue = ["sad", "sad", "sad", "light", "light", "light"];
     this.musicIndex = 0;
     this.currentMusic = null;
@@ -58,12 +60,18 @@ class MainScene extends Phaser.Scene {
     this.drawLeftFlower();
     this.add.rectangle(ARENA.x + ARENA.width - 16, ARENA.y + ARENA.height - 18, 26, 26, 0x48d128).setOrigin(0.5, 0.5);
 
+    this.ground = this.add.rectangle(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height - 3, ARENA.width, 6, 0x000000, 0);
+    this.physics.add.existing(this.ground, true);
+
     this.player = this.physics.add.sprite(ARENA.x + 95, ARENA.y + ARENA.height - 22, "man").setScale(0.7);
     this.player.setDepth(5);
-    this.player.body.setAllowGravity(false);
+    this.player.body.setAllowGravity(true);
     this.player.body.setCollideWorldBounds(false);
     this.player.body.setSize(this.player.width * 0.55, this.player.height * 0.82);
     this.player.body.setOffset(this.player.width * 0.2, this.player.height * 0.18);
+    this.player.body.setGravityY(950);
+
+    this.physics.add.collider(this.player, this.ground);
 
     this.cursors = this.input.keyboard.createCursorKeys();
 
@@ -97,7 +105,7 @@ class MainScene extends Phaser.Scene {
 
   update() {
     const body = this.player.body;
-    body.setVelocity(0);
+    body.setVelocityX(0);
 
     if (this.cursors.left.isDown) {
       body.setVelocityX(-this.speed);
@@ -107,17 +115,13 @@ class MainScene extends Phaser.Scene {
       this.player.setFlipX(false);
     }
 
-    if (this.cursors.up.isDown) {
-      body.setVelocityY(-this.speed);
-    } else if (this.cursors.down.isDown) {
-      body.setVelocityY(this.speed);
+    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && body.blocked.down) {
+      body.setVelocityY(-this.jumpSpeed);
     }
 
     const halfW = body.width / 2;
-    const halfH = body.height / 2;
 
     this.player.x = Phaser.Math.Clamp(this.player.x, ARENA.x + halfW, ARENA.x + ARENA.width - halfW);
-    this.player.y = Phaser.Math.Clamp(this.player.y, ARENA.y + halfH, ARENA.y + ARENA.height - halfH);
   }
 
   startMusicLoop() {
