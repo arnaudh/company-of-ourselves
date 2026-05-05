@@ -17,7 +17,7 @@ const PLAY_AREA = {
 };
 
 const GAME_ID = "company-of-ourselves";
-const PLAYER_TURN = "pulsar";
+const PLAYER_TURN = "hiike";
 const CHARACTER_STYLES = {
   pulsar: {
     textureKey: "pulsar",
