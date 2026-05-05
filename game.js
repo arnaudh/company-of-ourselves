@@ -91,8 +91,12 @@ class MainScene extends Phaser.Scene {
     this.musicStarted = false;
     this.recorder = null;
     this.captureDownloadKey = null;
+    this.spawnShadowKey = null;
     this.captureDownloadInProgress = false;
     this.hasDownloadedCapture = false;
+    this.actionHistory = [];
+    this.recordingStartTime = 0;
+    this.shadowReplays = [];
   }
 
   create() {
@@ -154,6 +158,8 @@ class MainScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.spawnShadowKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    this.resetActionRecording();
     this.initRecording();
 
     // Some browsers block autoplay until first user interaction.
@@ -168,8 +174,10 @@ class MainScene extends Phaser.Scene {
     this.events.on("destroy", this.stopMusicLoop, this);
     this.events.on("shutdown", this.cleanupRecording, this);
     this.events.on("destroy", this.cleanupRecording, this);
+    this.events.on("shutdown", this.cleanupShadowReplays, this);
+    this.events.on("destroy", this.cleanupShadowReplays, this);
 
-    this.showStoryText("I wake up in a painted room.\nArrow keys move me. Up lets me jump.", {
+    this.showStoryText("I wake up in a painted room.\nArrow keys move me. Up jumps. X calls my shadow.", {
       autoHideMs: 2600,
     });
 
@@ -215,10 +223,15 @@ class MainScene extends Phaser.Scene {
     if (this.captureDownloadKey && Phaser.Input.Keyboard.JustDown(this.captureDownloadKey)) {
       this.downloadCapture();
     }
+    if (this.spawnShadowKey && Phaser.Input.Keyboard.JustDown(this.spawnShadowKey)) {
+      this.spawnShadowReplay();
+    }
 
     const halfW = body.width / 2;
 
     this.player.x = Phaser.Math.Clamp(this.player.x, PLAY_AREA.x + halfW, PLAY_AREA.x + PLAY_AREA.width - halfW);
+    this.recordPlayerFrame();
+    this.updateShadowReplays();
     this.updateStoryTriggers();
   }
 
@@ -291,6 +304,81 @@ class MainScene extends Phaser.Scene {
     this.storyText.setVisible(false);
   }
 
+  resetActionRecording() {
+    this.actionHistory.length = 0;
+    this.recordingStartTime = this.time.now;
+    this.recordPlayerFrame();
+  }
+
+  recordPlayerFrame() {
+    if (!this.player) return;
+
+    this.actionHistory.push({
+      time: this.time.now - this.recordingStartTime,
+      x: this.player.x,
+      y: this.player.y,
+      flipX: this.player.flipX,
+    });
+  }
+
+  spawnShadowReplay() {
+    if (this.actionHistory.length < 2) {
+      this.showStoryText("No movement recorded yet.", { autoHideMs: 1000 });
+      return;
+    }
+
+    const frames = this.actionHistory.map((frame) => ({ ...frame }));
+    const firstFrame = frames[0];
+    const shadow = this.add
+      .sprite(firstFrame.x, firstFrame.y, "man")
+      .setScale(1.4)
+      .setDepth(4)
+      .setAlpha(0.45)
+      .setTint(0x8ea0ff);
+    shadow.setFlipX(firstFrame.flipX);
+
+    this.shadowReplays.push({
+      sprite: shadow,
+      frames,
+      startTime: this.time.now,
+      frameIndex: 0,
+    });
+  }
+
+  updateShadowReplays() {
+    if (this.shadowReplays.length === 0) return;
+
+    const now = this.time.now;
+    this.shadowReplays = this.shadowReplays.filter((replay) => {
+      const { sprite, frames } = replay;
+      if (!sprite?.active || frames.length === 0) return false;
+
+      const elapsed = now - replay.startTime;
+      const lastFrame = frames[frames.length - 1];
+
+      if (elapsed >= lastFrame.time) {
+        sprite.setPosition(lastFrame.x, lastFrame.y);
+        sprite.setFlipX(lastFrame.flipX);
+        sprite.destroy();
+        return false;
+      }
+
+      while (replay.frameIndex < frames.length - 2 && frames[replay.frameIndex + 1].time <= elapsed) {
+        replay.frameIndex += 1;
+      }
+
+      const currentFrame = frames[replay.frameIndex];
+      const nextFrame = frames[replay.frameIndex + 1];
+      const span = Math.max(nextFrame.time - currentFrame.time, 1);
+      const progress = Phaser.Math.Clamp((elapsed - currentFrame.time) / span, 0, 1);
+
+      sprite.x = Phaser.Math.Linear(currentFrame.x, nextFrame.x, progress);
+      sprite.y = Phaser.Math.Linear(currentFrame.y, nextFrame.y, progress);
+      sprite.setFlipX(currentFrame.flipX);
+      return true;
+    });
+  }
+
   initRecording() {
     if (typeof window.GameRecorder !== "function") {
       return;
@@ -351,6 +439,13 @@ class MainScene extends Phaser.Scene {
       this.recorder.dispose();
     }
     this.recorder = null;
+  }
+
+  cleanupShadowReplays() {
+    for (const replay of this.shadowReplays) {
+      replay.sprite?.destroy();
+    }
+    this.shadowReplays = [];
   }
 
   startMusicLoop() {
