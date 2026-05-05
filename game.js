@@ -1,11 +1,15 @@
-const GAME_WIDTH = 1000;
-const GAME_HEIGHT = 640;
+const SOURCE_SCREENSHOT_WIDTH = 601;
+const SOURCE_SCREENSHOT_HEIGHT = 399;
+const GAME_SCALE_FACTOR = 1.3;
+
+const GAME_WIDTH = Math.round(SOURCE_SCREENSHOT_WIDTH * GAME_SCALE_FACTOR);
+const GAME_HEIGHT = Math.round(SOURCE_SCREENSHOT_HEIGHT * GAME_SCALE_FACTOR);
 
 const ARENA = {
-  x: 100,
-  y: 330,
-  width: 800,
-  height: 150,
+  x: Math.round(GAME_WIDTH * 0.1),
+  y: Math.round(GAME_HEIGHT * 0.515625),
+  width: Math.round(GAME_WIDTH * 0.8),
+  height: Math.round(GAME_HEIGHT * 0.234375),
 };
 
 class PreloadScene extends Phaser.Scene {
@@ -313,8 +317,7 @@ const config = {
   scene: [PreloadScene, MainScene],
   backgroundColor: "#000000",
   scale: {
-    mode: Phaser.Scale.FIT,
-    autoCenter: Phaser.Scale.CENTER_BOTH,
+    mode: Phaser.Scale.NONE,
   },
 };
 
