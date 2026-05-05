@@ -26,7 +26,7 @@ const CHARACTER_STYLES = {
   hiike: {
     textureKey: "hiike",
     shadowTint: 0xc8c8c8,
-    shadowAlpha: 0.45,
+    shadowAlpha: 0.72,
   },
 };
 
