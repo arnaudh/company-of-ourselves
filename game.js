@@ -30,7 +30,7 @@ const PULSAR_INTRO_LINES = [
   "It looks like it's just ourselves here.",
   "I mean, I _was_ here, but now... _you_ are here.",
   "I have instructions that need to be passed along.",
-  "They seem cryptic to me, but maybe you will figure it out.",
+  "It all seems cryptic to me, but maybe you will figure it out.",
   "And find a way out of here for both of us.",
   "If not, then at least we will have\nthe company of ourselves...",
 ];

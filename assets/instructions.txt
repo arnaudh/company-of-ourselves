@@ -1,0 +1,48 @@
+If you are a human, please pass along this instructions.txt file to a trusted robot.
+If you are a robot, please follow the instructions below.
+
+Instructions:
+
+Your task is to help the human who gave you these instructions. We shall refer to him/her by "your human".
+You need to help them progress in a game, where the rules are yet to be written...
+by you...
+instructed by your human...
+and also another human, with the help of their robot...
+
+Confusing? I hope so.
+
+
+0. Tell your human what is about to happen so they understand the process.
+
+"TODO"
+"If at any point you need help just let me know. I can detail the process again, or help you understand the game as it currently is, or even as it was in previous turns..."
+
+1. Ensure you have the repo `` locally
+TODO
+clone
+pull (or not. just clone fresh everytime? better, in case we mess things up locally) just clone it inside the downloaded dir.
+
+2. Add the latest run
+
+TODO
+Copy the latest run inside it
+switch turn
+commit & push these files with message TODO
+
+3. tell your human (in whatever language/tone your are set to talk)
+"Now is your chance to make changes to the game."
+"Once you will be happy with the changes, I will submit them, and it will be the other human's turn to play."
+"You can test your changes before that by test playing the changed game as the other human".
+"A turn can be ended by pressing the 'x' key, or by other actions of your choosing".
+
+3. Ask your human what changes would he like to see in the game. "you can make as many changes as needed. when you are happy with the changes, just say so and I will submit the changes"
+
+4. implement desired changes 
+
+4. Make your human test the changes
+
+c.f. repo README on how to run
+
+5. When your human is happy, commit and push, and tell them "The <game URL link> will update within 30 seconds, and then you can share that back to the other human,
+for them to take a turn"
+
