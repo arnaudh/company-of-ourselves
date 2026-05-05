@@ -16,7 +16,7 @@ const PLAY_AREA = {
   height: PLAY_AREA_HEIGHT,
 };
 
-const DEFAULT_PLAYER_TURN = "pulsar";
+const PLAYER_TURN = "pulsar";
 const CHARACTER_STYLES = {
   pulsar: {
     textureKey: "pulsar",
@@ -83,7 +83,6 @@ class PreloadScene extends Phaser.Scene {
     this.load.image("hiike", "assets/images/hiike.png");
     this.load.audio("sad", "assets/audio/sad.mp3");
     this.load.audio("light", "assets/audio/light.mp3");
-    this.load.json("game-state", "state.json");
   }
 }
 
@@ -113,12 +112,10 @@ class MainScene extends Phaser.Scene {
     this.actionHistory = [];
     this.recordingStartTime = 0;
     this.shadowReplays = [];
-    this.playerTurn = DEFAULT_PLAYER_TURN;
+    this.playerTurn = PLAYER_TURN;
   }
 
   create() {
-    this.playerTurn = this.readPlayerTurnFromState();
-
     this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, "wall").setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     this.storyText = this.add
@@ -329,20 +326,14 @@ class MainScene extends Phaser.Scene {
   }
 
   normalizePlayerTurn(rawPlayerTurn) {
-    if (typeof rawPlayerTurn !== "string") return DEFAULT_PLAYER_TURN;
+    if (typeof rawPlayerTurn !== "string") return PLAYER_TURN;
     const normalized = rawPlayerTurn.trim().toLowerCase();
-    return Object.prototype.hasOwnProperty.call(CHARACTER_STYLES, normalized) ? normalized : DEFAULT_PLAYER_TURN;
-  }
-
-  readPlayerTurnFromState() {
-    const state = this.cache.json.get("game-state");
-    const playerTurnFromState = state?.player_turn ?? state?.playerTurn;
-    return this.normalizePlayerTurn(playerTurnFromState);
+    return Object.prototype.hasOwnProperty.call(CHARACTER_STYLES, normalized) ? normalized : PLAYER_TURN;
   }
 
   getCharacterStyle(playerTurn) {
     const normalizedTurn = this.normalizePlayerTurn(playerTurn);
-    return CHARACTER_STYLES[normalizedTurn] ?? CHARACTER_STYLES[DEFAULT_PLAYER_TURN];
+    return CHARACTER_STYLES[normalizedTurn] ?? CHARACTER_STYLES[PLAYER_TURN];
   }
 
   applyCharacterStyle(sprite, playerTurn, isShadow) {
@@ -384,7 +375,7 @@ class MainScene extends Phaser.Scene {
     this.startShadowReplay(frames, this.playerTurn);
   }
 
-  startShadowReplay(frames, playerTurn = DEFAULT_PLAYER_TURN) {
+  startShadowReplay(frames, playerTurn = PLAYER_TURN) {
     if (!Array.isArray(frames) || frames.length < 2) return;
 
     const firstFrame = frames[0];
@@ -402,6 +393,7 @@ class MainScene extends Phaser.Scene {
       playerTurn: this.normalizePlayerTurn(playerTurn),
       startTime: this.time.now,
       frameIndex: 0,
+      isComplete: false,
     });
   }
 
@@ -485,6 +477,7 @@ class MainScene extends Phaser.Scene {
     this.shadowReplays = this.shadowReplays.filter((replay) => {
       const { sprite, frames } = replay;
       if (!sprite?.active || frames.length === 0) return false;
+      if (replay.isComplete) return true;
 
       const elapsed = now - replay.startTime;
       const lastFrame = frames[frames.length - 1];
@@ -492,8 +485,8 @@ class MainScene extends Phaser.Scene {
       if (elapsed >= lastFrame.time) {
         sprite.setPosition(lastFrame.x, lastFrame.y);
         sprite.setFlipX(lastFrame.flipX);
-        sprite.destroy();
-        return false;
+        replay.isComplete = true;
+        return true;
       }
 
       while (replay.frameIndex < frames.length - 2 && frames[replay.frameIndex + 1].time <= elapsed) {
