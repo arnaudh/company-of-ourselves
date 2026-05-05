@@ -5,11 +5,15 @@ const GAME_SCALE_FACTOR = 1.3;
 const GAME_WIDTH = Math.round(SOURCE_SCREENSHOT_WIDTH * GAME_SCALE_FACTOR);
 const GAME_HEIGHT = Math.round(SOURCE_SCREENSHOT_HEIGHT * GAME_SCALE_FACTOR);
 
-const ARENA = {
-  x: Math.round(GAME_WIDTH * 0.1),
-  y: Math.round(GAME_HEIGHT * 0.515625),
-  width: Math.round(GAME_WIDTH * 0.8),
-  height: Math.round(GAME_HEIGHT * 0.234375),
+const BASE_PLAY_AREA_Y_RATIO = 0.515625;
+const BASE_PLAY_AREA_HEIGHT_RATIO = 0.234375;
+const PLAY_AREA_WIDTH = Math.round(GAME_WIDTH * 0.9);
+const PLAY_AREA_HEIGHT = Math.round(GAME_HEIGHT * BASE_PLAY_AREA_HEIGHT_RATIO * 1.5);
+const PLAY_AREA = {
+  x: Math.round((GAME_WIDTH - PLAY_AREA_WIDTH) / 2),
+  y: Math.round(GAME_HEIGHT * (BASE_PLAY_AREA_Y_RATIO + BASE_PLAY_AREA_HEIGHT_RATIO * 0.2)),
+  width: PLAY_AREA_WIDTH,
+  height: PLAY_AREA_HEIGHT,
 };
 
 class PreloadScene extends Phaser.Scene {
@@ -114,24 +118,31 @@ class MainScene extends Phaser.Scene {
       .setScale(0.5);
     this.storyText.setVisible(false);
 
-    const sky = this.add.image(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height / 2, "sky");
-    const skyScale = Math.max(ARENA.width / sky.width, ARENA.height / sky.height);
+    const sky = this.add.image(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height / 2, "sky");
+    const skyScale = Math.max(PLAY_AREA.width / sky.width, PLAY_AREA.height / sky.height);
     sky.setScale(skyScale);
 
     // Keep sky image aspect ratio while clipping overflow to arena.
     const skyMaskShape = this.make.graphics({ x: 0, y: 0, add: false });
-    skyMaskShape.fillRect(ARENA.x, ARENA.y, ARENA.width, ARENA.height);
+    skyMaskShape.fillRect(PLAY_AREA.x, PLAY_AREA.y, PLAY_AREA.width, PLAY_AREA.height);
     sky.setMask(skyMaskShape.createGeometryMask());
 
-    this.add.rectangle(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height - 2, ARENA.width, 4, 0x3cae3f);
-    this.add.rectangle(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height - 6, ARENA.width, 2, 0x2f8f34, 0.5);
+    this.add.rectangle(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height - 2, PLAY_AREA.width, 4, 0x3cae3f);
+    this.add.rectangle(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height - 6, PLAY_AREA.width, 2, 0x2f8f34, 0.5);
 
     this.flowerPosition = this.drawLeftFlower();
 
-    this.ground = this.add.rectangle(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height - 3, ARENA.width, 6, 0x000000, 0);
+    this.ground = this.add.rectangle(
+      PLAY_AREA.x + PLAY_AREA.width / 2,
+      PLAY_AREA.y + PLAY_AREA.height - 3,
+      PLAY_AREA.width,
+      6,
+      0x000000,
+      0,
+    );
     this.physics.add.existing(this.ground, true);
 
-    this.player = this.physics.add.sprite(ARENA.x + 95, ARENA.y + ARENA.height - 22, "man").setScale(0.7);
+    this.player = this.physics.add.sprite(PLAY_AREA.x + 95, PLAY_AREA.y + PLAY_AREA.height - 22, "man").setScale(1.4);
     this.player.setDepth(5);
     this.player.body.setAllowGravity(true);
     this.player.body.setCollideWorldBounds(false);
@@ -168,8 +179,8 @@ class MainScene extends Phaser.Scene {
   }
 
   drawLeftFlower() {
-    const x = ARENA.x + 18;
-    const y = ARENA.y + ARENA.height - 18;
+    const x = PLAY_AREA.x + 18;
+    const y = PLAY_AREA.y + PLAY_AREA.height - 18;
 
     const flower = this.add.graphics();
     flower.fillStyle(0x3cae3f, 1);
@@ -207,7 +218,7 @@ class MainScene extends Phaser.Scene {
 
     const halfW = body.width / 2;
 
-    this.player.x = Phaser.Math.Clamp(this.player.x, ARENA.x + halfW, ARENA.x + ARENA.width - halfW);
+    this.player.x = Phaser.Math.Clamp(this.player.x, PLAY_AREA.x + halfW, PLAY_AREA.x + PLAY_AREA.width - halfW);
     this.updateStoryTriggers();
   }
 
