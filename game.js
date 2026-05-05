@@ -161,6 +161,7 @@ class MainScene extends Phaser.Scene {
     this.spawnShadowKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.resetActionRecording();
     this.initRecording();
+    this.loadPastTurnReplay();
 
     // Some browsers block autoplay until first user interaction.
     if (this.sound.locked) {
@@ -328,6 +329,12 @@ class MainScene extends Phaser.Scene {
     }
 
     const frames = this.actionHistory.map((frame) => ({ ...frame }));
+    this.startShadowReplay(frames);
+  }
+
+  startShadowReplay(frames) {
+    if (!Array.isArray(frames) || frames.length < 2) return;
+
     const firstFrame = frames[0];
     const shadow = this.add
       .sprite(firstFrame.x, firstFrame.y, "man")
@@ -343,6 +350,41 @@ class MainScene extends Phaser.Scene {
       startTime: this.time.now,
       frameIndex: 0,
     });
+  }
+
+  async loadPastTurnReplay() {
+    try {
+      const response = await fetch("./past-turn.json", {
+        cache: "no-store",
+      });
+      if (!response.ok) return;
+
+      const pastTurn = await response.json();
+      if (!Array.isArray(pastTurn?.frames)) return;
+
+      const frames = pastTurn.frames
+        .filter(
+          (frame) =>
+            frame &&
+            Number.isFinite(frame.time) &&
+            Number.isFinite(frame.x) &&
+            Number.isFinite(frame.y) &&
+            typeof frame.flipX === "boolean",
+        )
+        .map((frame) => ({
+          time: frame.time,
+          x: frame.x,
+          y: frame.y,
+          flipX: frame.flipX,
+        }))
+        .sort((a, b) => a.time - b.time);
+
+      if (frames.length < 2) return;
+      this.startShadowReplay(frames);
+    } catch (error) {
+      // Missing or invalid past-turn.json should not block the game.
+      console.warn("Unable to load past-turn.json:", error);
+    }
   }
 
   updateShadowReplays() {
@@ -415,13 +457,12 @@ class MainScene extends Phaser.Scene {
     }
 
     this.captureDownloadInProgress = true;
-    this.showStoryText("Saving recording...", { autoHideMs: 1200 });
+    this.showStoryText("Packing recording zip...", { autoHideMs: 1200 });
 
-    this.recorder
-      .stopAndDownload()
+    this.createCaptureZip()
       .then(() => {
         this.hasDownloadedCapture = true;
-        this.showStoryText("Recording downloaded.", { autoHideMs: 1600 });
+        this.showStoryText("Recording zip downloaded.", { autoHideMs: 1700 });
       })
       .catch((error) => {
         console.warn("Unable to save recording:", error);
@@ -431,6 +472,46 @@ class MainScene extends Phaser.Scene {
         this.captureDownloadInProgress = false;
         this.recorder = null;
       });
+  }
+
+  async createCaptureZip() {
+    if (typeof window.JSZip !== "function") {
+      throw new Error("JSZip is unavailable.");
+    }
+
+    const recording = await this.recorder.stopAndGetBlob();
+    const zip = new window.JSZip();
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const zipName = `company-of-ourselves-capture-${timestamp}.zip`;
+
+    const movementData = {
+      game: "company-of-ourselves",
+      exportedAt: new Date().toISOString(),
+      frameCount: this.actionHistory.length,
+      durationMs: this.actionHistory.length ? this.actionHistory[this.actionHistory.length - 1].time : 0,
+      frames: this.actionHistory,
+    };
+
+    zip.file("past-turn.webm", recording.blob);
+    zip.file("past-turn.json", JSON.stringify(movementData, null, 2));
+    zip.file(
+      "instructions.md",
+      "# Capture Notes\n\nThis is dummy content for now.\n\n- TODO: Add session summary\n- TODO: Add player metadata\n",
+    );
+
+    const zipBlob = await zip.generateAsync({ type: "blob" });
+    this.triggerFileDownload(zipBlob, zipName);
+  }
+
+  triggerFileDownload(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
   }
 
   cleanupRecording() {

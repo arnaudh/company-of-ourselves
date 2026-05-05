@@ -59,6 +59,12 @@ class GameRecorder {
   }
 
   async stopAndDownload() {
+    const recording = await this.stopAndGetBlob();
+    this.didDownload = true;
+    this._downloadBlob(recording.blob, recording.filename);
+  }
+
+  async stopAndGetBlob() {
     if (!this.recorder || this.recorder.state === "inactive") {
       throw new Error("Recording is not active.");
     }
@@ -87,9 +93,9 @@ class GameRecorder {
       this.recorder.stop();
     });
 
-    this.didDownload = true;
-    this._downloadBlob(blob);
+    const filename = this._buildVideoFilename();
     this.dispose();
+    return { blob, filename };
   }
 
   dispose() {
@@ -131,11 +137,7 @@ class GameRecorder {
     return "video/webm";
   }
 
-  _downloadBlob(blob) {
-    const extension = this.selectedMimeType.includes("webm") ? "webm" : "video";
-    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const filename = `${this.filenamePrefix}-${timestamp}.${extension}`;
-
+  _downloadBlob(blob, filename = this._buildVideoFilename()) {
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
@@ -144,6 +146,12 @@ class GameRecorder {
     link.click();
     link.remove();
     URL.revokeObjectURL(url);
+  }
+
+  _buildVideoFilename() {
+    const extension = this.selectedMimeType.includes("webm") ? "webm" : "video";
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    return `${this.filenamePrefix}-${timestamp}.${extension}`;
   }
 }
 
