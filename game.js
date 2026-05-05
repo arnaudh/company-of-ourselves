@@ -101,7 +101,7 @@ class MainScene extends Phaser.Scene {
     this.speed = 170;
     this.jumpSpeed = 430;
     this.ground = null;
-    this.musicQueue = ["sad", "sad", "sad", "light", "light", "light"];
+    this.musicQueue = ["sad", "sad", "light", "light"];
     this.musicIndex = 0;
     this.currentMusic = null;
     this.musicStarted = false;
