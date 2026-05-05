@@ -23,13 +23,66 @@
         height: 100%;
       }
 
+      #boot-loader {
+        position: fixed;
+        inset: 0;
+        background: #3a2f1f;
+        display: grid;
+        place-items: center;
+        z-index: 9999;
+      }
+
+      #boot-loader.hidden {
+        display: none;
+      }
+
+      .boot-loader-inner {
+        display: grid;
+        gap: 18px;
+        justify-items: center;
+      }
+
+      .boot-spinner {
+        width: 56px;
+        height: 56px;
+        border-radius: 50%;
+        border: 6px solid rgba(255, 255, 255, 0.25);
+        border-top-color: #ffffff;
+        animation: boot-spin 0.9s linear infinite;
+      }
+
+      .boot-text {
+        color: #ffffff;
+        font-family: Arial, sans-serif;
+        font-size: 24px;
+      }
+
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+
       canvas {
         display: block;
       }
     </style>
   </head>
   <body>
+    <div id="boot-loader" aria-live="polite">
+      <div class="boot-loader-inner">
+        <div class="boot-spinner" aria-hidden="true"></div>
+        <div class="boot-text">Loading...</div>
+      </div>
+    </div>
     <div id="game-container"></div>
+    <script>
+      window.hideBootLoader = function hideBootLoader() {
+        const loader = document.getElementById("boot-loader");
+        if (!loader) return;
+        loader.classList.add("hidden");
+      };
+    </script>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.min.js"></script>
     <script src="./game.js"></script>
   </body>

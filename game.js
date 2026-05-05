@@ -8,11 +8,72 @@ const ARENA = {
   height: 150,
 };
 
+class PreloadScene extends Phaser.Scene {
+  constructor() {
+    super("preload-scene");
+  }
+
+  preload() {
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x3a2f1f);
+
+    const loadingText = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 70, "Loading...", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "30px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5);
+
+    const progressText = this.add
+      .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 + 70, "0%", {
+        fontFamily: "Arial, sans-serif",
+        fontSize: "22px",
+        color: "#ffffff",
+      })
+      .setOrigin(0.5);
+
+    const spinner = this.add.graphics();
+    spinner.lineStyle(8, 0xffffff, 0.95);
+    spinner.beginPath();
+    spinner.arc(0, 0, 28, 0.25, Math.PI * 1.75, false);
+    spinner.strokePath();
+    spinner.setPosition(GAME_WIDTH / 2, GAME_HEIGHT / 2);
+
+    this.tweens.add({
+      targets: spinner,
+      angle: 360,
+      duration: 900,
+      repeat: -1,
+      ease: "Linear",
+    });
+
+    this.load.on("progress", (value) => {
+      progressText.setText(`${Math.round(value * 100)}%`);
+    });
+
+    this.load.on("complete", () => {
+      this.time.delayedCall(120, () => this.scene.start("main-scene"));
+    });
+
+    this.load.image("wall", "assets/images/background_wall.jpg");
+    this.load.image("sky", "assets/images/background_sky.jpg");
+    this.load.image("man", "assets/images/man.png");
+    this.load.audio("sad", "assets/audio/sad.mp3");
+    this.load.audio("light", "assets/audio/light.mp3");
+  }
+}
+
 class MainScene extends Phaser.Scene {
   constructor() {
     super("main-scene");
     this.player = null;
     this.cursors = null;
+    this.storyText = null;
+    this.storyHideTimer = null;
+    this.storyEventsFired = new Set();
+    this.flowerPosition = null;
+    this.wasNearFlower = false;
+    this.hasReachedFlower = false;
     this.speed = 170;
     this.jumpSpeed = 430;
     this.ground = null;
@@ -22,22 +83,14 @@ class MainScene extends Phaser.Scene {
     this.musicStarted = false;
   }
 
-  preload() {
-    this.load.image("wall", "assets/images/background_wall.jpg");
-    this.load.image("sky", "assets/images/background_sky.jpg");
-    this.load.image("man", "assets/images/man.png");
-    this.load.audio("sad", "assets/audio/sad.mp3");
-    this.load.audio("light", "assets/audio/light.mp3");
-  }
-
   create() {
     this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, "wall").setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
-    this.add
+    this.storyText = this.add
       .text(
         GAME_WIDTH / 2,
         80,
-        "My attention is stolen by a green square\non the other end of the room. I want to\nbe its friend more than anything that I've\never wanted. I decide to use the Arrow\nKeys to approach it.",
+        "",
         {
           fontFamily: "Georgia, Times New Roman, serif",
           fontStyle: "italic",
@@ -51,14 +104,21 @@ class MainScene extends Phaser.Scene {
       )
       .setOrigin(0.5, 0)
       .setScale(0.5);
+    this.storyText.setVisible(false);
 
-    this.add.image(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height / 2, "sky").setDisplaySize(ARENA.width, ARENA.height);
+    const sky = this.add.image(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height / 2, "sky");
+    const skyScale = Math.max(ARENA.width / sky.width, ARENA.height / sky.height);
+    sky.setScale(skyScale);
+
+    // Keep sky image aspect ratio while clipping overflow to arena.
+    const skyMaskShape = this.make.graphics({ x: 0, y: 0, add: false });
+    skyMaskShape.fillRect(ARENA.x, ARENA.y, ARENA.width, ARENA.height);
+    sky.setMask(skyMaskShape.createGeometryMask());
 
     this.add.rectangle(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height - 2, ARENA.width, 4, 0x3cae3f);
     this.add.rectangle(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height - 6, ARENA.width, 2, 0x2f8f34, 0.5);
 
-    this.drawLeftFlower();
-    this.add.rectangle(ARENA.x + ARENA.width - 16, ARENA.y + ARENA.height - 18, 26, 26, 0x48d128).setOrigin(0.5, 0.5);
+    this.flowerPosition = this.drawLeftFlower();
 
     this.ground = this.add.rectangle(ARENA.x + ARENA.width / 2, ARENA.y + ARENA.height - 3, ARENA.width, 6, 0x000000, 0);
     this.physics.add.existing(this.ground, true);
@@ -85,6 +145,14 @@ class MainScene extends Phaser.Scene {
 
     this.events.on("shutdown", this.stopMusicLoop, this);
     this.events.on("destroy", this.stopMusicLoop, this);
+
+    this.showStoryText("I wake up in a painted room.\nArrow keys move me. Up lets me jump.", {
+      autoHideMs: 2600,
+    });
+
+    if (typeof window.hideBootLoader === "function") {
+      window.hideBootLoader();
+    }
   }
 
   drawLeftFlower() {
@@ -101,6 +169,8 @@ class MainScene extends Phaser.Scene {
     flower.fillCircle(x + 4, y - 22, 3);
     flower.fillCircle(x - 4, y - 18, 3);
     flower.fillCircle(x + 4, y - 18, 3);
+
+    return { x, y: y - 20 };
   }
 
   update() {
@@ -117,11 +187,82 @@ class MainScene extends Phaser.Scene {
 
     if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && body.blocked.down) {
       body.setVelocityY(-this.jumpSpeed);
+      this.triggerStoryEvent("first-jump");
     }
 
     const halfW = body.width / 2;
 
     this.player.x = Phaser.Math.Clamp(this.player.x, ARENA.x + halfW, ARENA.x + ARENA.width - halfW);
+    this.updateStoryTriggers();
+  }
+
+  updateStoryTriggers() {
+    if (!this.flowerPosition) return;
+
+    const distanceToFlower = Phaser.Math.Distance.Between(
+      this.player.x,
+      this.player.y,
+      this.flowerPosition.x,
+      this.flowerPosition.y,
+    );
+    const nearFlower = distanceToFlower < 34;
+
+    if (nearFlower && !this.wasNearFlower) {
+      this.triggerStoryEvent("reach-flower");
+      this.hasReachedFlower = true;
+    } else if (!nearFlower && this.wasNearFlower) {
+      this.triggerStoryEvent("leave-flower");
+    }
+
+    this.wasNearFlower = nearFlower;
+  }
+
+  triggerStoryEvent(eventName) {
+    if (eventName === "first-jump" && this.storyEventsFired.has("first-jump")) return;
+    if (eventName === "reach-flower") {
+      this.showStoryText("A tiny flower waits at the edge.\nI think it understands me.");
+      this.storyEventsFired.add("reach-flower");
+      return;
+    }
+
+    if (eventName === "leave-flower") {
+      this.showStoryText("I step away, and the feeling fades.", { autoHideMs: 1800 });
+      return;
+    }
+
+    if (eventName === "first-jump") {
+      this.showStoryText("I test gravity with a hopeful jump.", { autoHideMs: 1200 });
+      this.storyEventsFired.add("first-jump");
+    }
+  }
+
+  showStoryText(text, options = {}) {
+    const { autoHideMs = 0 } = options;
+
+    if (this.storyHideTimer) {
+      this.storyHideTimer.remove(false);
+      this.storyHideTimer = null;
+    }
+
+    this.storyText.setText(text);
+    this.storyText.setVisible(true);
+
+    if (autoHideMs > 0) {
+      this.storyHideTimer = this.time.delayedCall(autoHideMs, () => {
+        // Keep the flower text visible if the player is currently next to it.
+        if (!this.wasNearFlower) {
+          this.hideStoryText();
+        }
+      });
+    }
+  }
+
+  hideStoryText() {
+    if (this.storyHideTimer) {
+      this.storyHideTimer.remove(false);
+      this.storyHideTimer = null;
+    }
+    this.storyText.setVisible(false);
   }
 
   startMusicLoop() {
@@ -151,6 +292,10 @@ class MainScene extends Phaser.Scene {
       this.currentMusic = null;
     }
     this.musicStarted = false;
+    if (this.storyHideTimer) {
+      this.storyHideTimer.remove(false);
+      this.storyHideTimer = null;
+    }
   }
 }
 
@@ -165,7 +310,7 @@ const config = {
       debug: false,
     },
   },
-  scene: MainScene,
+  scene: [PreloadScene, MainScene],
   backgroundColor: "#000000",
   scale: {
     mode: Phaser.Scale.FIT,
