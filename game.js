@@ -16,6 +16,7 @@ const PLAY_AREA = {
   height: PLAY_AREA_HEIGHT,
 };
 
+const GAME_ID = "company-of-ourselves";
 const PLAYER_TURN = "pulsar";
 const CHARACTER_STYLES = {
   pulsar: {
@@ -106,13 +107,14 @@ class MainScene extends Phaser.Scene {
     this.musicStarted = false;
     this.recorder = null;
     this.captureDownloadKey = null;
-    this.spawnShadowKey = null;
     this.captureDownloadInProgress = false;
     this.hasDownloadedCapture = false;
     this.actionHistory = [];
     this.recordingStartTime = 0;
     this.shadowReplays = [];
     this.playerTurn = PLAYER_TURN;
+    this.loadedRunCountForGame = 0;
+    this.loadedRunMaxNumberForGame = 0;
   }
 
   create() {
@@ -178,7 +180,6 @@ class MainScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    this.spawnShadowKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.resetActionRecording();
     this.initRecording();
     this.loadPastRunReplays();
@@ -198,7 +199,7 @@ class MainScene extends Phaser.Scene {
     this.events.on("shutdown", this.cleanupShadowReplays, this);
     this.events.on("destroy", this.cleanupShadowReplays, this);
 
-    this.showStoryText("I wake up in a painted room.\nArrow keys move me. Up jumps. X calls my shadow.", {
+    this.showStoryText("I wake up in a painted room.\nArrow keys move me. Up jumps.", {
       autoHideMs: 2600,
     });
 
@@ -243,9 +244,6 @@ class MainScene extends Phaser.Scene {
     }
     if (this.captureDownloadKey && Phaser.Input.Keyboard.JustDown(this.captureDownloadKey)) {
       this.downloadCapture();
-    }
-    if (this.spawnShadowKey && Phaser.Input.Keyboard.JustDown(this.spawnShadowKey)) {
-      this.spawnShadowReplay();
     }
 
     const halfW = body.width / 2;
@@ -365,16 +363,6 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  spawnShadowReplay() {
-    if (this.actionHistory.length < 2) {
-      this.showStoryText("No movement recorded yet.", { autoHideMs: 1000 });
-      return;
-    }
-
-    const frames = this.actionHistory.map((frame) => ({ ...frame }));
-    this.startShadowReplay(frames, this.playerTurn);
-  }
-
   startShadowReplay(frames, playerTurn = PLAYER_TURN) {
     if (!Array.isArray(frames) || frames.length < 2) return;
 
@@ -398,37 +386,47 @@ class MainScene extends Phaser.Scene {
   }
 
   async loadPastRunReplays() {
-    const runFileNames = await this.discoverPastRunFiles();
-    for (const fileName of runFileNames) {
-      await this.loadRunReplay(fileName);
+    const runFilePaths = await this.discoverPastRunFiles();
+    for (const filePath of runFilePaths) {
+      await this.loadRunReplay(filePath);
     }
   }
 
   async discoverPastRunFiles() {
-    const discoveredFileNames = new Set();
-    try {
-      const response = await fetch("./", { cache: "no-store" });
-      if (response.ok) {
-        const html = await response.text();
-        const links = html.matchAll(/href="([^"]+)"/g);
-        for (const link of links) {
-          const href = link[1];
-          if (typeof href !== "string") continue;
-          const decodedHref = decodeURIComponent(href);
-          const fileName = decodedHref.split("/").pop();
-          if (!fileName) continue;
-          if (/^past-run.*\.json$/i.test(fileName)) {
-            discoveredFileNames.add(fileName);
-          }
+    const discoveredFilePaths = new Set();
+
+    const crawlRunDirectory = async (directoryPath) => {
+      const response = await fetch(`./${directoryPath}`, { cache: "no-store" });
+      if (!response.ok) return;
+
+      const html = await response.text();
+      const links = html.matchAll(/href="([^"]+)"/g);
+      for (const link of links) {
+        const href = link[1];
+        if (typeof href !== "string") continue;
+        if (href.startsWith("../") || href.startsWith("/") || href.includes("://")) continue;
+
+        const decodedHref = decodeURIComponent(href.split("?")[0].split("#")[0]);
+        if (!decodedHref) continue;
+
+        if (decodedHref.endsWith("/")) {
+          await crawlRunDirectory(`${directoryPath}${decodedHref}`);
+          continue;
+        }
+
+        if (decodedHref === "run.json") {
+          discoveredFilePaths.add(`${directoryPath}${decodedHref}`);
         }
       }
+    };
+
+    try {
+      await crawlRunDirectory("runs/");
     } catch (error) {
       // Directory listing may not be available depending on host configuration.
     }
 
-    const sortedFileNames = Array.from(discoveredFileNames).sort();
-    if (sortedFileNames.length > 0) return sortedFileNames;
-    return ["past-turn.json"];
+    return Array.from(discoveredFilePaths).sort();
   }
 
   parseReplayFrames(runFileData) {
@@ -451,6 +449,32 @@ class MainScene extends Phaser.Scene {
       .sort((a, b) => a.time - b.time);
   }
 
+  registerLoadedRun(runFilePath, runFileData) {
+    const runGame = typeof runFileData?.game === "string" ? runFileData.game : GAME_ID;
+    if (runGame !== GAME_ID) return;
+
+    this.loadedRunCountForGame += 1;
+
+    const explicitRunNumber =
+      Number.isInteger(runFileData?.run_number) && runFileData.run_number > 0 ? runFileData.run_number : null;
+    if (explicitRunNumber !== null) {
+      this.loadedRunMaxNumberForGame = Math.max(this.loadedRunMaxNumberForGame, explicitRunNumber);
+      return;
+    }
+
+    const pathMatch = runFilePath.match(/\/(\d+)\/run\.json$/);
+    if (!pathMatch) return;
+
+    const runNumberFromPath = Number.parseInt(pathMatch[1], 10);
+    if (Number.isInteger(runNumberFromPath) && runNumberFromPath > 0) {
+      this.loadedRunMaxNumberForGame = Math.max(this.loadedRunMaxNumberForGame, runNumberFromPath);
+    }
+  }
+
+  getNextRunNumber() {
+    return Math.max(this.loadedRunMaxNumberForGame, this.loadedRunCountForGame) + 1;
+  }
+
   async loadRunReplay(fileName) {
     try {
       const response = await fetch(`./${fileName}`, {
@@ -463,6 +487,7 @@ class MainScene extends Phaser.Scene {
       const replayPlayerTurn = this.normalizePlayerTurn(runFileData?.player_turn ?? runFileData?.playerTurn);
 
       if (frames.length < 2) return;
+      this.registerLoadedRun(fileName, runFileData);
       this.startShadowReplay(frames, replayPlayerTurn);
     } catch (error) {
       // Missing or invalid run files should not block the game.
@@ -565,12 +590,13 @@ class MainScene extends Phaser.Scene {
 
     const recording = await this.recorder.stopAndGetBlob();
     const zip = new window.JSZip();
+    const runNumber = this.getNextRunNumber();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const zipName = `company-of-ourselves-capture-${timestamp}.zip`;
-    const runBaseName = `past-run-${timestamp}`;
+    const zipName = `${GAME_ID}-capture-${timestamp}.zip`;
 
     const movementData = {
-      game: "company-of-ourselves",
+      game: GAME_ID,
+      run_number: runNumber,
       exportedAt: new Date().toISOString(),
       player_turn: this.playerTurn,
       frameCount: this.actionHistory.length,
@@ -578,8 +604,8 @@ class MainScene extends Phaser.Scene {
       frames: this.actionHistory,
     };
 
-    zip.file(`${runBaseName}.webm`, recording.blob);
-    zip.file(`${runBaseName}.json`, JSON.stringify(movementData, null, 2));
+    zip.file(`${runNumber}/run.webm`, recording.blob);
+    zip.file(`${runNumber}/run.json`, JSON.stringify(movementData, null, 2));
     zip.file(
       "instructions.md",
       "# Capture Notes\n\nThis is dummy content for now.\n\n- TODO: Add session summary\n- TODO: Add player metadata\n",
