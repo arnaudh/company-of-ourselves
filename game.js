@@ -16,6 +16,20 @@ const PLAY_AREA = {
   height: PLAY_AREA_HEIGHT,
 };
 
+const DEFAULT_PLAYER_TURN = "pulsar";
+const CHARACTER_STYLES = {
+  pulsar: {
+    textureKey: "pulsar",
+    shadowTint: 0x555555,
+    shadowAlpha: 0.45,
+  },
+  hiike: {
+    textureKey: "hiike",
+    shadowTint: 0xc8c8c8,
+    shadowAlpha: 0.45,
+  },
+};
+
 class PreloadScene extends Phaser.Scene {
   constructor() {
     super("preload-scene");
@@ -65,9 +79,11 @@ class PreloadScene extends Phaser.Scene {
 
     this.load.image("wall", "assets/images/background_wall.jpg");
     this.load.image("sky", "assets/images/background_sky.jpg");
-    this.load.image("man", "assets/images/man.png");
+    this.load.image("pulsar", "assets/images/pulsar.png");
+    this.load.image("hiike", "assets/images/hiike.png");
     this.load.audio("sad", "assets/audio/sad.mp3");
     this.load.audio("light", "assets/audio/light.mp3");
+    this.load.json("game-state", "state.json");
   }
 }
 
@@ -97,9 +113,12 @@ class MainScene extends Phaser.Scene {
     this.actionHistory = [];
     this.recordingStartTime = 0;
     this.shadowReplays = [];
+    this.playerTurn = DEFAULT_PLAYER_TURN;
   }
 
   create() {
+    this.playerTurn = this.readPlayerTurnFromState();
+
     this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, "wall").setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
 
     this.storyText = this.add
@@ -146,8 +165,12 @@ class MainScene extends Phaser.Scene {
     );
     this.physics.add.existing(this.ground, true);
 
-    this.player = this.physics.add.sprite(PLAY_AREA.x + 95, PLAY_AREA.y + PLAY_AREA.height - 22, "man").setScale(1.4);
+    const playerStyle = this.getCharacterStyle(this.playerTurn);
+    this.player = this.physics.add
+      .sprite(PLAY_AREA.x + 95, PLAY_AREA.y + PLAY_AREA.height - 22, playerStyle.textureKey)
+      .setScale(1.4);
     this.player.setDepth(5);
+    this.applyCharacterStyle(this.player, this.playerTurn, false);
     this.player.body.setAllowGravity(true);
     this.player.body.setCollideWorldBounds(false);
     this.player.body.setSize(this.player.width * 0.55, this.player.height * 0.82);
@@ -161,7 +184,7 @@ class MainScene extends Phaser.Scene {
     this.spawnShadowKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.resetActionRecording();
     this.initRecording();
-    this.loadPastTurnReplay();
+    this.loadPastRunReplays();
 
     // Some browsers block autoplay until first user interaction.
     if (this.sound.locked) {
@@ -305,6 +328,35 @@ class MainScene extends Phaser.Scene {
     this.storyText.setVisible(false);
   }
 
+  normalizePlayerTurn(rawPlayerTurn) {
+    if (typeof rawPlayerTurn !== "string") return DEFAULT_PLAYER_TURN;
+    const normalized = rawPlayerTurn.trim().toLowerCase();
+    return Object.prototype.hasOwnProperty.call(CHARACTER_STYLES, normalized) ? normalized : DEFAULT_PLAYER_TURN;
+  }
+
+  readPlayerTurnFromState() {
+    const state = this.cache.json.get("game-state");
+    const playerTurnFromState = state?.player_turn ?? state?.playerTurn;
+    return this.normalizePlayerTurn(playerTurnFromState);
+  }
+
+  getCharacterStyle(playerTurn) {
+    const normalizedTurn = this.normalizePlayerTurn(playerTurn);
+    return CHARACTER_STYLES[normalizedTurn] ?? CHARACTER_STYLES[DEFAULT_PLAYER_TURN];
+  }
+
+  applyCharacterStyle(sprite, playerTurn, isShadow) {
+    if (!sprite) return;
+    const style = this.getCharacterStyle(playerTurn);
+    sprite.clearTint();
+    if (isShadow) {
+      sprite.setTint(style.shadowTint);
+      sprite.setAlpha(style.shadowAlpha);
+      return;
+    }
+    sprite.setAlpha(1);
+  }
+
   resetActionRecording() {
     this.actionHistory.length = 0;
     this.recordingStartTime = this.time.now;
@@ -329,61 +381,100 @@ class MainScene extends Phaser.Scene {
     }
 
     const frames = this.actionHistory.map((frame) => ({ ...frame }));
-    this.startShadowReplay(frames);
+    this.startShadowReplay(frames, this.playerTurn);
   }
 
-  startShadowReplay(frames) {
+  startShadowReplay(frames, playerTurn = DEFAULT_PLAYER_TURN) {
     if (!Array.isArray(frames) || frames.length < 2) return;
 
     const firstFrame = frames[0];
+    const style = this.getCharacterStyle(playerTurn);
     const shadow = this.add
-      .sprite(firstFrame.x, firstFrame.y, "man")
+      .sprite(firstFrame.x, firstFrame.y, style.textureKey)
       .setScale(1.4)
-      .setDepth(4)
-      .setAlpha(0.45)
-      .setTint(0x8ea0ff);
+      .setDepth(4);
+    this.applyCharacterStyle(shadow, playerTurn, true);
     shadow.setFlipX(firstFrame.flipX);
 
     this.shadowReplays.push({
       sprite: shadow,
       frames,
+      playerTurn: this.normalizePlayerTurn(playerTurn),
       startTime: this.time.now,
       frameIndex: 0,
     });
   }
 
-  async loadPastTurnReplay() {
+  async loadPastRunReplays() {
+    const runFileNames = await this.discoverPastRunFiles();
+    for (const fileName of runFileNames) {
+      await this.loadRunReplay(fileName);
+    }
+  }
+
+  async discoverPastRunFiles() {
+    const discoveredFileNames = new Set();
     try {
-      const response = await fetch("./past-turn.json", {
+      const response = await fetch("./", { cache: "no-store" });
+      if (response.ok) {
+        const html = await response.text();
+        const links = html.matchAll(/href="([^"]+)"/g);
+        for (const link of links) {
+          const href = link[1];
+          if (typeof href !== "string") continue;
+          const decodedHref = decodeURIComponent(href);
+          const fileName = decodedHref.split("/").pop();
+          if (!fileName) continue;
+          if (/^past-run.*\.json$/i.test(fileName)) {
+            discoveredFileNames.add(fileName);
+          }
+        }
+      }
+    } catch (error) {
+      // Directory listing may not be available depending on host configuration.
+    }
+
+    const sortedFileNames = Array.from(discoveredFileNames).sort();
+    if (sortedFileNames.length > 0) return sortedFileNames;
+    return ["past-turn.json"];
+  }
+
+  parseReplayFrames(runFileData) {
+    if (!Array.isArray(runFileData?.frames)) return [];
+    return runFileData.frames
+      .filter(
+        (frame) =>
+          frame &&
+          Number.isFinite(frame.time) &&
+          Number.isFinite(frame.x) &&
+          Number.isFinite(frame.y) &&
+          typeof frame.flipX === "boolean",
+      )
+      .map((frame) => ({
+        time: frame.time,
+        x: frame.x,
+        y: frame.y,
+        flipX: frame.flipX,
+      }))
+      .sort((a, b) => a.time - b.time);
+  }
+
+  async loadRunReplay(fileName) {
+    try {
+      const response = await fetch(`./${fileName}`, {
         cache: "no-store",
       });
       if (!response.ok) return;
 
-      const pastTurn = await response.json();
-      if (!Array.isArray(pastTurn?.frames)) return;
-
-      const frames = pastTurn.frames
-        .filter(
-          (frame) =>
-            frame &&
-            Number.isFinite(frame.time) &&
-            Number.isFinite(frame.x) &&
-            Number.isFinite(frame.y) &&
-            typeof frame.flipX === "boolean",
-        )
-        .map((frame) => ({
-          time: frame.time,
-          x: frame.x,
-          y: frame.y,
-          flipX: frame.flipX,
-        }))
-        .sort((a, b) => a.time - b.time);
+      const runFileData = await response.json();
+      const frames = this.parseReplayFrames(runFileData);
+      const replayPlayerTurn = this.normalizePlayerTurn(runFileData?.player_turn ?? runFileData?.playerTurn);
 
       if (frames.length < 2) return;
-      this.startShadowReplay(frames);
+      this.startShadowReplay(frames, replayPlayerTurn);
     } catch (error) {
-      // Missing or invalid past-turn.json should not block the game.
-      console.warn("Unable to load past-turn.json:", error);
+      // Missing or invalid run files should not block the game.
+      console.warn(`Unable to load replay file "${fileName}":`, error);
     }
   }
 
@@ -483,17 +574,19 @@ class MainScene extends Phaser.Scene {
     const zip = new window.JSZip();
     const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
     const zipName = `company-of-ourselves-capture-${timestamp}.zip`;
+    const runBaseName = `past-run-${timestamp}`;
 
     const movementData = {
       game: "company-of-ourselves",
       exportedAt: new Date().toISOString(),
+      player_turn: this.playerTurn,
       frameCount: this.actionHistory.length,
       durationMs: this.actionHistory.length ? this.actionHistory[this.actionHistory.length - 1].time : 0,
       frames: this.actionHistory,
     };
 
-    zip.file("past-turn.webm", recording.blob);
-    zip.file("past-turn.json", JSON.stringify(movementData, null, 2));
+    zip.file(`${runBaseName}.webm`, recording.blob);
+    zip.file(`${runBaseName}.json`, JSON.stringify(movementData, null, 2));
     zip.file(
       "instructions.md",
       "# Capture Notes\n\nThis is dummy content for now.\n\n- TODO: Add session summary\n- TODO: Add player metadata\n",
