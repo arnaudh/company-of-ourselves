@@ -85,6 +85,10 @@ class MainScene extends Phaser.Scene {
     this.musicIndex = 0;
     this.currentMusic = null;
     this.musicStarted = false;
+    this.recorder = null;
+    this.captureDownloadKey = null;
+    this.captureDownloadInProgress = false;
+    this.hasDownloadedCapture = false;
   }
 
   create() {
@@ -138,6 +142,8 @@ class MainScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.ground);
 
     this.cursors = this.input.keyboard.createCursorKeys();
+    this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.initRecording();
 
     // Some browsers block autoplay until first user interaction.
     if (this.sound.locked) {
@@ -149,6 +155,8 @@ class MainScene extends Phaser.Scene {
 
     this.events.on("shutdown", this.stopMusicLoop, this);
     this.events.on("destroy", this.stopMusicLoop, this);
+    this.events.on("shutdown", this.cleanupRecording, this);
+    this.events.on("destroy", this.cleanupRecording, this);
 
     this.showStoryText("I wake up in a painted room.\nArrow keys move me. Up lets me jump.", {
       autoHideMs: 2600,
@@ -192,6 +200,9 @@ class MainScene extends Phaser.Scene {
     if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && body.blocked.down) {
       body.setVelocityY(-this.jumpSpeed);
       this.triggerStoryEvent("first-jump");
+    }
+    if (this.captureDownloadKey && Phaser.Input.Keyboard.JustDown(this.captureDownloadKey)) {
+      this.downloadCapture();
     }
 
     const halfW = body.width / 2;
@@ -267,6 +278,68 @@ class MainScene extends Phaser.Scene {
       this.storyHideTimer = null;
     }
     this.storyText.setVisible(false);
+  }
+
+  initRecording() {
+    if (typeof window.GameRecorder !== "function") {
+      return;
+    }
+
+    const soundManager = this.sound;
+    const hasWebAudioOutput = Boolean(soundManager?.context && soundManager?.masterVolumeNode);
+    const audioContext = hasWebAudioOutput ? soundManager.context : null;
+    const audioNode = hasWebAudioOutput ? soundManager.masterVolumeNode : null;
+
+    try {
+      this.recorder = new window.GameRecorder({
+        canvas: this.sys.game.canvas,
+        audioContext,
+        audioNode,
+        filenamePrefix: "company-of-ourselves",
+      });
+      this.recorder.start();
+    } catch (error) {
+      this.recorder = null;
+      console.warn("Unable to start recorder:", error);
+    }
+  }
+
+  downloadCapture() {
+    if (this.captureDownloadInProgress) return;
+    if (this.hasDownloadedCapture) {
+      this.showStoryText("Recording already downloaded.", { autoHideMs: 1300 });
+      return;
+    }
+    if (!this.recorder) {
+      this.showStoryText("Recording unavailable in this browser.", { autoHideMs: 1500 });
+      return;
+    }
+
+    this.captureDownloadInProgress = true;
+    this.showStoryText("Saving recording...", { autoHideMs: 1200 });
+
+    this.recorder
+      .stopAndDownload()
+      .then(() => {
+        this.hasDownloadedCapture = true;
+        this.showStoryText("Recording downloaded.", { autoHideMs: 1600 });
+      })
+      .catch((error) => {
+        console.warn("Unable to save recording:", error);
+        this.showStoryText("Could not save recording.", { autoHideMs: 1600 });
+      })
+      .finally(() => {
+        this.captureDownloadInProgress = false;
+        this.recorder = null;
+      });
+  }
+
+  cleanupRecording() {
+    if (!this.recorder) return;
+    if (!this.captureDownloadInProgress) {
+      this.recorder.dispose();
+    }
+    this.recorder = null;
   }
 
   startMusicLoop() {
