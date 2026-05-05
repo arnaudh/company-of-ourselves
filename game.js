@@ -18,16 +18,34 @@ const PLAY_AREA = {
 
 const GAME_ID = "company-of-ourselves";
 const PLAYER_TURN = "hiike";
+const PULSAR_SHADOW_MEET_MIN_ELAPSED_MS = 3000;
+const PULSAR_SHADOW_MEET_DISTANCE = 34;
+const PULSAR_INTRO_LINE_DURATION_MS = 4600;
+const PULSAR_DOCUMENT_SPAWN_DELAY_MS = 3000;
+const DOCUMENT_PICKUP_DISTANCE = 32;
+const STORY_TEXT_SCALE = 0.5;
+const STORY_TEXT_WRAP_VISUAL_WIDTH = PLAY_AREA.width;
+const STORY_TEXT_DEFAULT_COLOR = "#ffd36e";
+const PULSAR_INTRO_LINES = [
+  "It looks like it's just ourselves here.",
+  "I mean, I _was_ here, but now... _you_ are here.",
+  "I have instructions that need to be passed along.",
+  "They seem cryptic to me, but maybe you will figure it out.",
+  "And find a way out of here for both of us.",
+  "If not, then at least we will have\nthe company of ourselves...",
+];
 const CHARACTER_STYLES = {
   pulsar: {
     textureKey: "pulsar",
     shadowTint: 0x555555,
     shadowAlpha: 0.45,
+    textColor: "#000000",
   },
   hiike: {
     textureKey: "hiike",
     shadowTint: 0xc8c8c8,
     shadowAlpha: 0.72,
+    textColor: "#ffffff",
   },
 };
 
@@ -115,6 +133,14 @@ class MainScene extends Phaser.Scene {
     this.playerTurn = PLAYER_TURN;
     this.loadedRunCountForGame = 0;
     this.loadedRunMaxNumberForGame = 0;
+    this.gameplayStartTime = 0;
+    this.hasTriggeredPulsarShadowSequence = false;
+    this.storySequenceLocked = false;
+    this.storySequenceTimer = null;
+    this.documentPosition = null;
+    this.documentPickup = null;
+    this.hasSpawnedDocument = false;
+    this.hasReachedDocument = false;
   }
 
   create() {
@@ -134,10 +160,14 @@ class MainScene extends Phaser.Scene {
           lineSpacing: 10,
           stroke: "#6a5637",
           strokeThickness: 8,
+          wordWrap: {
+            width: STORY_TEXT_WRAP_VISUAL_WIDTH / STORY_TEXT_SCALE,
+            useAdvancedWrap: true,
+          },
         },
       )
       .setOrigin(0.5, 0)
-      .setScale(0.5);
+      .setScale(STORY_TEXT_SCALE);
     this.storyText.setVisible(false);
 
     const sky = this.add.image(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height / 2, "sky");
@@ -179,8 +209,9 @@ class MainScene extends Phaser.Scene {
     this.physics.add.collider(this.player, this.ground);
 
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.resetActionRecording();
+    this.gameplayStartTime = this.time.now;
     this.initRecording();
     this.loadPastRunReplays();
 
@@ -251,10 +282,12 @@ class MainScene extends Phaser.Scene {
     this.player.x = Phaser.Math.Clamp(this.player.x, PLAY_AREA.x + halfW, PLAY_AREA.x + PLAY_AREA.width - halfW);
     this.recordPlayerFrame();
     this.updateShadowReplays();
+    this.tryTriggerPulsarShadowSequence();
     this.updateStoryTriggers();
   }
 
   updateStoryTriggers() {
+    if (this.storySequenceLocked) return;
     if (!this.flowerPosition) return;
 
     const distanceToFlower = Phaser.Math.Distance.Between(
@@ -273,9 +306,22 @@ class MainScene extends Phaser.Scene {
     }
 
     this.wasNearFlower = nearFlower;
+
+    if (this.hasSpawnedDocument && !this.hasReachedDocument && this.documentPosition) {
+      const distanceToDocument = Phaser.Math.Distance.Between(
+        this.player.x,
+        this.player.y,
+        this.documentPosition.x,
+        this.documentPosition.y,
+      );
+      if (distanceToDocument < DOCUMENT_PICKUP_DISTANCE) {
+        this.triggerStoryEvent("reach-document");
+      }
+    }
   }
 
   triggerStoryEvent(eventName) {
+    if (this.storySequenceLocked) return;
     if (eventName === "first-jump" && this.storyEventsFired.has("first-jump")) return;
     if (eventName === "reach-flower") {
       this.showStoryText("A tiny flower waits at the edge.\nI think it understands me.");
@@ -291,18 +337,30 @@ class MainScene extends Phaser.Scene {
     if (eventName === "first-jump") {
       this.showStoryText("I test gravity with a hopeful jump.", { autoHideMs: 1200 });
       this.storyEventsFired.add("first-jump");
+      return;
+    }
+
+    if (eventName === "reach-document" && !this.hasReachedDocument) {
+      this.hasReachedDocument = true;
+      this.documentPickup?.destroy();
+      this.documentPickup = null;
+      this.downloadCapture();
     }
   }
 
   showStoryText(text, options = {}) {
-    const { autoHideMs = 0 } = options;
+    const { autoHideMs = 0, force = false, speaker = null } = options;
+    if (this.storySequenceLocked && !force) return;
 
     if (this.storyHideTimer) {
       this.storyHideTimer.remove(false);
       this.storyHideTimer = null;
     }
 
-    this.storyText.setText(text);
+    const formattedText = this.formatStoryText(text);
+    this.storyText.setWordWrapWidth(this.getStoryTextWrapWidth(), true);
+    this.storyText.setColor(this.getStoryTextColor(speaker));
+    this.storyText.setText(formattedText);
     this.storyText.setVisible(true);
 
     if (autoHideMs > 0) {
@@ -554,28 +612,33 @@ class MainScene extends Phaser.Scene {
     }
   }
 
-  downloadCapture() {
+  downloadCapture(options = {}) {
+    const { announce = true } = options;
     if (this.captureDownloadInProgress) return;
     if (this.hasDownloadedCapture) {
-      this.showStoryText("Recording already downloaded.", { autoHideMs: 1300 });
+      if (announce) {
+        this.showStoryText("Recording already downloaded.", { autoHideMs: 1300 });
+      }
       return;
     }
     if (!this.recorder) {
-      this.showStoryText("Recording unavailable in this browser.", { autoHideMs: 1500 });
+      if (announce) {
+        this.showStoryText("Recording unavailable in this browser.", { autoHideMs: 1500 });
+      }
       return;
     }
 
     this.captureDownloadInProgress = true;
-    this.showStoryText("Packing recording zip...", { autoHideMs: 1200 });
 
     this.createCaptureZip()
       .then(() => {
         this.hasDownloadedCapture = true;
-        this.showStoryText("Recording zip downloaded.", { autoHideMs: 1700 });
       })
       .catch((error) => {
         console.warn("Unable to save recording:", error);
-        this.showStoryText("Could not save recording.", { autoHideMs: 1600 });
+        if (announce) {
+          this.showStoryText("Could not save recording.", { autoHideMs: 1600 });
+        }
       })
       .finally(() => {
         this.captureDownloadInProgress = false;
@@ -606,10 +669,9 @@ class MainScene extends Phaser.Scene {
 
     zip.file(`${runNumber}/run.webm`, recording.blob);
     zip.file(`${runNumber}/run.json`, JSON.stringify(movementData, null, 2));
-    zip.file(
-      "instructions.md",
-      "# Capture Notes\n\nThis is dummy content for now.\n\n- TODO: Add session summary\n- TODO: Add player metadata\n",
-    );
+    const instructionsResponse = await fetch("assets/instructions.md");
+    const instructionsContent = await instructionsResponse.text();
+    zip.file("instructions.md", instructionsContent);
 
     const zipBlob = await zip.generateAsync({ type: "blob" });
     this.triggerFileDownload(zipBlob, zipName);
@@ -635,10 +697,146 @@ class MainScene extends Phaser.Scene {
   }
 
   cleanupShadowReplays() {
+    if (this.storySequenceTimer) {
+      this.storySequenceTimer.remove(false);
+      this.storySequenceTimer = null;
+    }
+    this.documentPickup?.destroy();
+    this.documentPickup = null;
     for (const replay of this.shadowReplays) {
       replay.sprite?.destroy();
     }
     this.shadowReplays = [];
+  }
+
+  tryTriggerPulsarShadowSequence() {
+    if (this.storySequenceLocked || this.hasTriggeredPulsarShadowSequence) return;
+    if (this.normalizePlayerTurn(this.playerTurn) !== "hiike") return;
+    if (this.time.now - this.gameplayStartTime < PULSAR_SHADOW_MEET_MIN_ELAPSED_MS) return;
+    if (!this.player?.active) return;
+
+    const hasMetPulsarShadow = this.shadowReplays.some((replay) => {
+      if (replay.playerTurn !== "pulsar") return false;
+      if (!replay.sprite?.active) return false;
+      return (
+        Phaser.Math.Distance.Between(this.player.x, this.player.y, replay.sprite.x, replay.sprite.y) <
+        PULSAR_SHADOW_MEET_DISTANCE
+      );
+    });
+
+    if (!hasMetPulsarShadow) return;
+    this.startPulsarShadowSequence();
+  }
+
+  startPulsarShadowSequence() {
+    this.hasTriggeredPulsarShadowSequence = true;
+    this.storySequenceLocked = true;
+    this.hideStoryText();
+    this.playStorySequence(
+      PULSAR_INTRO_LINES,
+      PULSAR_INTRO_LINE_DURATION_MS,
+      () => {
+        this.storySequenceTimer = this.time.delayedCall(PULSAR_DOCUMENT_SPAWN_DELAY_MS, () => {
+          this.storySequenceTimer = null;
+          this.spawnDocumentPickup();
+          this.storySequenceLocked = false;
+        });
+      },
+      { speaker: "pulsar" },
+    );
+  }
+
+  spawnDocumentPickup() {
+    if (this.hasSpawnedDocument || !this.flowerPosition) return;
+    const x = Phaser.Math.Clamp(this.flowerPosition.x + 72, PLAY_AREA.x + 20, PLAY_AREA.x + PLAY_AREA.width - 20);
+    const y = this.flowerPosition.y - 1;
+
+    const documentPickup = this.add.graphics();
+    documentPickup.fillStyle(0xf6eac6, 1);
+    documentPickup.lineStyle(2, 0x8e7a52, 1);
+    documentPickup.fillRoundedRect(x - 10, y - 14, 20, 26, 2);
+    documentPickup.strokeRoundedRect(x - 10, y - 14, 20, 26, 2);
+    documentPickup.lineStyle(1, 0x8e7a52, 0.95);
+    documentPickup.lineBetween(x - 5, y - 6, x + 5, y - 6);
+    documentPickup.lineBetween(x - 5, y - 1, x + 5, y - 1);
+    documentPickup.lineBetween(x - 5, y + 4, x + 2, y + 4);
+    documentPickup.fillStyle(0xfff6de, 1);
+    documentPickup.fillTriangle(x + 10, y - 14, x + 5, y - 14, x + 10, y - 9);
+    documentPickup.setDepth(3);
+
+    this.tweens.add({
+      targets: documentPickup,
+      y: "-=3",
+      duration: 650,
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.InOut",
+    });
+
+    this.documentPickup = documentPickup;
+    this.documentPosition = { x, y };
+    this.hasSpawnedDocument = true;
+  }
+
+  formatStoryText(rawText) {
+    if (typeof rawText !== "string") return rawText;
+    return rawText.replace(/_([^_]+)_/g, (_match, groupText) => this.toItalicUnicode(groupText));
+  }
+
+  toItalicUnicode(value) {
+    if (typeof value !== "string") return value;
+    return Array.from(value)
+      .map((char) => {
+        const code = char.codePointAt(0);
+        if (code >= 65 && code <= 90) {
+          return String.fromCodePoint(0x1d434 + (code - 65));
+        }
+        if (code >= 97 && code <= 122) {
+          if (code === 104) return String.fromCodePoint(0x210e); // Lowercase italic h has a dedicated codepoint.
+          return String.fromCodePoint(0x1d44e + (code - 97));
+        }
+        return char;
+      })
+      .join("");
+  }
+
+  getStoryTextWrapWidth() {
+    const effectiveScaleX = Math.max(Math.abs(this.storyText?.scaleX ?? STORY_TEXT_SCALE), 0.001);
+    return STORY_TEXT_WRAP_VISUAL_WIDTH / effectiveScaleX;
+  }
+
+  getStoryTextColor(speaker) {
+    const speakerToColor = typeof speaker === "string" && speaker.trim() ? speaker : this.playerTurn;
+    const style = CHARACTER_STYLES[this.normalizePlayerTurn(speakerToColor)];
+    return style?.textColor ?? STORY_TEXT_DEFAULT_COLOR;
+  }
+
+  playStorySequence(lines, lineDurationMs, onComplete, options = {}) {
+    if (!Array.isArray(lines) || lines.length === 0) {
+      onComplete?.();
+      return;
+    }
+    if (this.storySequenceTimer) {
+      this.storySequenceTimer.remove(false);
+      this.storySequenceTimer = null;
+    }
+
+    let index = 0;
+    const showLine = () => {
+      this.showStoryText(lines[index], { force: true, speaker: options.speaker ?? null });
+      index += 1;
+      if (index >= lines.length) {
+        this.storySequenceTimer = this.time.delayedCall(lineDurationMs, () => {
+          this.storySequenceTimer = null;
+          onComplete?.();
+        });
+        return;
+      }
+
+      this.storySequenceTimer = this.time.delayedCall(lineDurationMs, showLine);
+    };
+
+    showLine();
   }
 
   startMusicLoop() {
