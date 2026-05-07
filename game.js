@@ -141,6 +141,8 @@ class MainScene extends Phaser.Scene {
     this.documentPickup = null;
     this.hasSpawnedDocument = false;
     this.hasReachedDocument = false;
+    this.movementLocked = false;
+    this.hasTriggeredTurnEndSequence = false;
   }
 
   create() {
@@ -249,20 +251,22 @@ class MainScene extends Phaser.Scene {
     const body = this.player.body;
     body.setVelocityX(0);
 
-    if (this.cursors.left.isDown) {
-      body.setVelocityX(-this.speed);
-      this.player.setFlipX(true);
-    } else if (this.cursors.right.isDown) {
-      body.setVelocityX(this.speed);
-      this.player.setFlipX(false);
-    }
+    if (!this.movementLocked) {
+      if (this.cursors.left.isDown) {
+        body.setVelocityX(-this.speed);
+        this.player.setFlipX(true);
+      } else if (this.cursors.right.isDown) {
+        body.setVelocityX(this.speed);
+        this.player.setFlipX(false);
+      }
 
-    if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && body.blocked.down) {
-      body.setVelocityY(-this.jumpSpeed);
-      this.triggerStoryEvent("first-jump");
-    }
-    if (this.captureDownloadKey && Phaser.Input.Keyboard.JustDown(this.captureDownloadKey)) {
-      this.endTurn();
+      if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && body.blocked.down) {
+        body.setVelocityY(-this.jumpSpeed);
+        this.triggerStoryEvent("first-jump");
+      }
+      if (this.captureDownloadKey && Phaser.Input.Keyboard.JustDown(this.captureDownloadKey)) {
+        this.endTurn();
+      }
     }
 
     const halfW = body.width / 2;
@@ -747,6 +751,7 @@ class MainScene extends Phaser.Scene {
 
   endTurn(options = {}) {
     const { announce = true } = options;
+    if (this.hasTriggeredTurnEndSequence) return;
     if (this.captureDownloadInProgress) return;
     if (this.hasDownloadedCapture) {
       if (announce) {
@@ -761,6 +766,7 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
+    this.startTurnEndSequence();
     this.captureDownloadInProgress = true;
 
     this.createCaptureZip()
@@ -777,6 +783,19 @@ class MainScene extends Phaser.Scene {
         this.captureDownloadInProgress = false;
         this.recorder = null;
       });
+  }
+
+  startTurnEndSequence() {
+    if (this.hasTriggeredTurnEndSequence) return;
+    this.hasTriggeredTurnEndSequence = true;
+    this.cameras.main.flash(500, 255, 255, 255, true);
+    this.time.delayedCall(500, () => this.lockMovement());
+  }
+
+  lockMovement() {
+    this.movementLocked = true;
+    if (!this.player?.body) return;
+    this.player.body.setVelocityX(0);
   }
 
   async createCaptureZip() {
