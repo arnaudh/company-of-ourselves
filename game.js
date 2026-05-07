@@ -17,7 +17,7 @@ const PLAY_AREA = {
 };
 
 const GAME_ID = "company-of-ourselves";
-const PLAYER_TURN = "hiike";
+const INITIAL_PLAYER = "pulsar";
 const PULSAR_SHADOW_MEET_DISTANCE = 34;
 const PULSAR_INTRO_LINE_DURATION_MS = 4600;
 const PULSAR_DOCUMENT_SPAWN_DELAY_MS = 3000;
@@ -25,6 +25,7 @@ const DOCUMENT_PICKUP_DISTANCE = 32;
 const STORY_TEXT_SCALE = 0.5;
 const STORY_TEXT_WRAP_VISUAL_WIDTH = PLAY_AREA.width;
 const STORY_TEXT_DEFAULT_COLOR = "#ffd36e";
+const STORY_TEXT_DEFAULT_AUTO_HIDE_MS = 1800;
 const PULSAR_INTRO_LINES = [
   "It looks like it's just ourselves here.",
   "I mean, I _was_ here, but now... _you_ are here.",
@@ -129,7 +130,7 @@ class MainScene extends Phaser.Scene {
     this.actionHistory = [];
     this.recordingStartTime = 0;
     this.shadowReplays = [];
-    this.playerTurn = PLAYER_TURN;
+    this.playerTurn = INITIAL_PLAYER;
     this.loadedRunCountForGame = 0;
     this.loadedRunMaxNumberForGame = 0;
     this.hasTriggeredPulsarShadowSequence = false;
@@ -192,25 +193,16 @@ class MainScene extends Phaser.Scene {
     );
     this.physics.add.existing(this.ground, true);
 
-    const playerStyle = this.getCharacterStyle(this.playerTurn);
-    this.player = this.physics.add
-      .sprite(PLAY_AREA.x + 95, PLAY_AREA.y + PLAY_AREA.height - 22, playerStyle.textureKey)
-      .setScale(1.4);
-    this.player.setDepth(5);
-    this.applyCharacterStyle(this.player, this.playerTurn, false);
-    this.player.body.setAllowGravity(true);
-    this.player.body.setCollideWorldBounds(false);
-    this.player.body.setSize(this.player.width * 0.55, this.player.height * 0.82);
-    this.player.body.setOffset(this.player.width * 0.2, this.player.height * 0.18);
-    this.player.body.setGravityY(950);
-
-    this.physics.add.collider(this.player, this.ground);
-
     this.cursors = this.input.keyboard.createCursorKeys();
     this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
-    this.resetActionRecording();
     this.initRecording();
-    this.loadPastRunReplays();
+    this.loadPastRunReplays().finally(() => {
+      this.createPlayer();
+      this.resetActionRecording();
+      this.current_player_says("I wake up in a painted room.\nArrow keys move me.", {
+        autoHideMs: 2600,
+      });
+    });
 
     // Some browsers block autoplay until first user interaction.
     if (this.sound.locked) {
@@ -226,10 +218,6 @@ class MainScene extends Phaser.Scene {
     this.events.on("destroy", this.cleanupRecording, this);
     this.events.on("shutdown", this.cleanupShadowReplays, this);
     this.events.on("destroy", this.cleanupShadowReplays, this);
-
-    this.showStoryText("I wake up in a painted room.\nArrow keys move me.", {
-      autoHideMs: 2600,
-    });
 
     if (typeof window.hideBootLoader === "function") {
       window.hideBootLoader();
@@ -255,6 +243,8 @@ class MainScene extends Phaser.Scene {
   }
 
   update() {
+    if (!this.player?.body || !this.cursors) return;
+
     const body = this.player.body;
     body.setVelocityX(0);
 
@@ -321,18 +311,18 @@ class MainScene extends Phaser.Scene {
     if (this.storySequenceLocked) return;
     if (eventName === "first-jump" && this.storyEventsFired.has("first-jump")) return;
     if (eventName === "reach-flower") {
-      this.showStoryText("A tiny flower waits at the edge.\nI think it understands me.");
+      this.current_player_says("A tiny flower waits at the edge.\nI think it understands me.", { autoHideMs: 0 });
       this.storyEventsFired.add("reach-flower");
       return;
     }
 
     if (eventName === "leave-flower") {
-      this.showStoryText("I step away, and the feeling fades.", { autoHideMs: 1800 });
+      this.current_player_says("I step away, and the feeling fades.", { autoHideMs: 1800 });
       return;
     }
 
     if (eventName === "first-jump") {
-      this.showStoryText("I test gravity with a hopeful jump.", { autoHideMs: 1200 });
+      this.current_player_says("I test gravity with a hopeful jump.", { autoHideMs: 1200 });
       this.storyEventsFired.add("first-jump");
       return;
     }
@@ -370,6 +360,24 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  current_player_says(text, options = {}) {
+    const { autoHideMs = STORY_TEXT_DEFAULT_AUTO_HIDE_MS, ...restOptions } = options;
+    this.showStoryText(text, {
+      ...restOptions,
+      autoHideMs,
+      speaker: this.playerTurn,
+    });
+  }
+
+  other_player_says(text, options = {}) {
+    const { autoHideMs = STORY_TEXT_DEFAULT_AUTO_HIDE_MS, ...restOptions } = options;
+    this.showStoryText(text, {
+      ...restOptions,
+      autoHideMs,
+      speaker: this.getOppositePlayerTurn(this.playerTurn),
+    });
+  }
+
   hideStoryText() {
     if (this.storyHideTimer) {
       this.storyHideTimer.remove(false);
@@ -379,26 +387,40 @@ class MainScene extends Phaser.Scene {
   }
 
   normalizePlayerTurn(rawPlayerTurn) {
-    if (typeof rawPlayerTurn !== "string") return PLAYER_TURN;
+    if (typeof rawPlayerTurn !== "string") return INITIAL_PLAYER;
     const normalized = rawPlayerTurn.trim().toLowerCase();
-    return Object.prototype.hasOwnProperty.call(CHARACTER_STYLES, normalized) ? normalized : PLAYER_TURN;
+    return Object.prototype.hasOwnProperty.call(CHARACTER_STYLES, normalized) ? normalized : INITIAL_PLAYER;
   }
 
   getCharacterStyle(playerTurn) {
     const normalizedTurn = this.normalizePlayerTurn(playerTurn);
-    return CHARACTER_STYLES[normalizedTurn] ?? CHARACTER_STYLES[PLAYER_TURN];
+    return CHARACTER_STYLES[normalizedTurn] ?? CHARACTER_STYLES[INITIAL_PLAYER];
   }
 
-  applyCharacterStyle(sprite, playerTurn, isShadow) {
-    if (!sprite) return;
-    const style = this.getCharacterStyle(playerTurn);
-    sprite.clearTint();
-    if (isShadow) {
-      sprite.setTint(style.shadowTint);
-      sprite.setAlpha(style.shadowAlpha);
-      return;
-    }
-    sprite.setAlpha(1);
+  getOppositePlayerTurn(playerTurn) {
+    const normalizedTurn = this.normalizePlayerTurn(playerTurn);
+    return normalizedTurn === "pulsar" ? "hiike" : "pulsar";
+  }
+
+  createPlayer() {
+    if (this.player?.active) return;
+
+    const playerStyle = this.getCharacterStyle(this.playerTurn);
+    this.player = this.physics.add
+      .sprite(PLAY_AREA.x + 95, PLAY_AREA.y + PLAY_AREA.height - 22, playerStyle.textureKey)
+      .setScale(1.4);
+    this.player.setDepth(5);
+    this.player.setAlpha(1);
+    this.player.body.setAllowGravity(true);
+    this.player.body.setCollideWorldBounds(false);
+    this.player.body.setSize(this.player.width * 0.55, this.player.height * 0.82);
+    this.player.body.setOffset(this.player.width * 0.2, this.player.height * 0.18);
+    this.player.body.setGravityY(950);
+    this.physics.add.collider(this.player, this.ground);
+  }
+
+  setCurrentPlayerTurn(playerTurn) {
+    this.playerTurn = this.normalizePlayerTurn(playerTurn);
   }
 
   resetActionRecording() {
@@ -418,7 +440,7 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  startShadowReplay(frames, playerTurn = PLAYER_TURN) {
+  startShadowReplay(frames, playerTurn = INITIAL_PLAYER) {
     if (!Array.isArray(frames) || frames.length < 2) return;
 
     const firstFrame = frames[0];
@@ -427,7 +449,8 @@ class MainScene extends Phaser.Scene {
       .sprite(firstFrame.x, firstFrame.y, style.textureKey)
       .setScale(1.4)
       .setDepth(4);
-    this.applyCharacterStyle(shadow, playerTurn, true);
+    shadow.setTint(style.shadowTint);
+    shadow.setAlpha(style.shadowAlpha);
     shadow.setFlipX(firstFrame.flipX);
 
     this.shadowReplays.push({
@@ -442,8 +465,106 @@ class MainScene extends Phaser.Scene {
 
   async loadPastRunReplays() {
     const runFilePaths = await this.discoverPastRunFiles();
-    for (const filePath of runFilePaths) {
-      await this.loadRunReplay(filePath);
+    const pastRunsData = await this.loadPastRunsData(runFilePaths);
+    this.applyPastRunsSnapshot(pastRunsData);
+    this.startPastRunReplays(pastRunsData);
+  }
+
+  extractRunNumberFromPath(runFilePath) {
+    if (typeof runFilePath !== "string") return null;
+    const pathMatch = runFilePath.match(/\/(\d+)\/run\.json$/);
+    if (!pathMatch) return null;
+    const runNumber = Number.parseInt(pathMatch[1], 10);
+    return Number.isInteger(runNumber) && runNumber > 0 ? runNumber : null;
+  }
+
+  resolveRunNumber(runFilePath, runFileData) {
+    const explicitRunNumber =
+      Number.isInteger(runFileData?.run_number) && runFileData.run_number > 0 ? runFileData.run_number : null;
+    if (explicitRunNumber !== null) return explicitRunNumber;
+    return this.extractRunNumberFromPath(runFilePath);
+  }
+
+  async loadPastRunsData(runFilePaths) {
+    if (!Array.isArray(runFilePaths) || runFilePaths.length === 0) return [];
+
+    const runDataPromises = runFilePaths.map(async (filePath, index) => {
+      try {
+        const response = await fetch(`./${filePath}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) return null;
+
+        const runFileData = await response.json();
+        const runGame = typeof runFileData?.game === "string" ? runFileData.game : GAME_ID;
+
+        return {
+          filePath,
+          index,
+          runFileData,
+          runGame,
+          runNumber: this.resolveRunNumber(filePath, runFileData),
+          replayFrames: this.parseReplayFrames(runFileData),
+          replayPlayerTurn: this.normalizePlayerTurn(runFileData?.player_turn ?? runFileData?.playerTurn),
+        };
+      } catch (error) {
+        // Missing or invalid run files should not block startup.
+        console.warn(`Unable to load replay file "${filePath}":`, error);
+        return null;
+      }
+    });
+
+    const loadedRunData = await Promise.all(runDataPromises);
+    return loadedRunData.filter((runData) => runData !== null);
+  }
+
+  getLatestRunDataForGame(runsForGame) {
+    if (!Array.isArray(runsForGame) || runsForGame.length === 0) return null;
+
+    let latestRunData = runsForGame[0];
+    let latestSortableRunNumber = Number.isInteger(latestRunData.runNumber) ? latestRunData.runNumber : -1;
+
+    for (let index = 1; index < runsForGame.length; index += 1) {
+      const candidateRunData = runsForGame[index];
+      const candidateSortableRunNumber = Number.isInteger(candidateRunData.runNumber) ? candidateRunData.runNumber : -1;
+
+      if (candidateSortableRunNumber > latestSortableRunNumber) {
+        latestRunData = candidateRunData;
+        latestSortableRunNumber = candidateSortableRunNumber;
+        continue;
+      }
+
+      if (
+        candidateSortableRunNumber === latestSortableRunNumber &&
+        candidateRunData.index > latestRunData.index
+      ) {
+        latestRunData = candidateRunData;
+      }
+    }
+
+    return latestRunData;
+  }
+
+  applyPastRunsSnapshot(pastRunsData) {
+    const runsForGame = pastRunsData.filter((runData) => runData.runGame === GAME_ID);
+    this.loadedRunCountForGame = runsForGame.length;
+    this.loadedRunMaxNumberForGame = runsForGame.reduce((maxRunNumber, runData) => {
+      if (!Number.isInteger(runData.runNumber)) return maxRunNumber;
+      return Math.max(maxRunNumber, runData.runNumber);
+    }, 0);
+
+    const latestRunData = this.getLatestRunDataForGame(runsForGame);
+    if (!latestRunData) return;
+
+    const nextPlayerTurn = this.getOppositePlayerTurn(latestRunData.replayPlayerTurn);
+    this.setCurrentPlayerTurn(nextPlayerTurn);
+  }
+
+  startPastRunReplays(pastRunsData) {
+    for (const runData of pastRunsData) {
+      if (runData.runGame !== GAME_ID) continue;
+      if (runData.replayFrames.length < 2) continue;
+      this.startShadowReplay(runData.replayFrames, runData.replayPlayerTurn);
     }
   }
 
@@ -504,50 +625,8 @@ class MainScene extends Phaser.Scene {
       .sort((a, b) => a.time - b.time);
   }
 
-  registerLoadedRun(runFilePath, runFileData) {
-    const runGame = typeof runFileData?.game === "string" ? runFileData.game : GAME_ID;
-    if (runGame !== GAME_ID) return;
-
-    this.loadedRunCountForGame += 1;
-
-    const explicitRunNumber =
-      Number.isInteger(runFileData?.run_number) && runFileData.run_number > 0 ? runFileData.run_number : null;
-    if (explicitRunNumber !== null) {
-      this.loadedRunMaxNumberForGame = Math.max(this.loadedRunMaxNumberForGame, explicitRunNumber);
-      return;
-    }
-
-    const pathMatch = runFilePath.match(/\/(\d+)\/run\.json$/);
-    if (!pathMatch) return;
-
-    const runNumberFromPath = Number.parseInt(pathMatch[1], 10);
-    if (Number.isInteger(runNumberFromPath) && runNumberFromPath > 0) {
-      this.loadedRunMaxNumberForGame = Math.max(this.loadedRunMaxNumberForGame, runNumberFromPath);
-    }
-  }
-
   getNextRunNumber() {
     return Math.max(this.loadedRunMaxNumberForGame, this.loadedRunCountForGame) + 1;
-  }
-
-  async loadRunReplay(fileName) {
-    try {
-      const response = await fetch(`./${fileName}`, {
-        cache: "no-store",
-      });
-      if (!response.ok) return;
-
-      const runFileData = await response.json();
-      const frames = this.parseReplayFrames(runFileData);
-      const replayPlayerTurn = this.normalizePlayerTurn(runFileData?.player_turn ?? runFileData?.playerTurn);
-
-      if (frames.length < 2) return;
-      this.registerLoadedRun(fileName, runFileData);
-      this.startShadowReplay(frames, replayPlayerTurn);
-    } catch (error) {
-      // Missing or invalid run files should not block the game.
-      console.warn(`Unable to load replay file "${fileName}":`, error);
-    }
   }
 
   updateShadowReplays() {
@@ -664,8 +743,8 @@ class MainScene extends Phaser.Scene {
       frames: this.actionHistory,
     };
 
-    zip.file(`${runNumber}/run.webm`, recording.blob);
-    zip.file(`${runNumber}/run.json`, JSON.stringify(movementData, null, 2));
+    zip.file("run/run.webm", recording.blob);
+    zip.file("run/run.json", JSON.stringify(movementData, null, 2));
     const instructionsResponse = await fetch("assets/instructions.txt");
     const instructionsContent = await instructionsResponse.text();
     zip.file("instructions.txt", instructionsContent);

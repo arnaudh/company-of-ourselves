@@ -22,7 +22,8 @@ git clone git@github.com:arnaudh/company-of-ourselves.git
 2. Add the latest run to the repo
 
 ```
-cp -r run* company-of-ourselves/runs/
+run_number=$(python3 -c 'import json; print(json.load(open("run/run.json"))["run_number"])')
+cp -r run company-of-ourselves/runs/$run_number
 ```
 
 3. Switch player turn
