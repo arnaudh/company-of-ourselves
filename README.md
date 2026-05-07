@@ -1,16 +1,8 @@
+Play the game here: https://arnaudh.github.io/company-of-ourselves/
 
-```
-It looks like it's just ourselves here.
-I mean, I _was_ here, but now... _you_ are here.
-I have instructions that need to be passed along.
-It all seems cryptic to me, but maybe you will figure it out.
-And find a way out of here for both of us.
-If not, then at least we will have the company of ourselves...
-```
+## Running the game locally
 
-## How to run
-
-This command serves the game and opens it automatically in your browser:
+This command serves the game locally and opens it in your browser:
 
 ```bash
 ./run.py
