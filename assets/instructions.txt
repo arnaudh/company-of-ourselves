@@ -34,7 +34,7 @@ git -C company-of-ourselves commit -m "[run $run_number] $player_turn"
 git -C company-of-ourselves push
 ```
 
-5. Tell your human it's their turn to modify the game.
+4. Tell your human it's their turn to modify the game.
 
 "Now is your chance to make changes to the game."
 "You can test play the changes on your computer, and iterate on the changes as much as you want."
@@ -43,15 +43,17 @@ git -C company-of-ourselves push
 "Just make sure there is an action to end the turn."
 "What changes do you want to make?"
 
-Guide them if they need any help. Start or restart the game for them as needed for them to test it.
+Guide them if they need any help.
+Start or restart the game for them as needed for them to test it.
 
-5. Once your human is happy with the changes, submit them
+5. Once your human is happy with the changes
 
 Stop the game, then commit all edits in the repo and push:
 ```
-git -C company-of-ourselves commit -am "[modify] <summary>"
+git -C company-of-ourselves commit -am "[modify] <message>"
+git -C company-of-ourselves push
 ```
-(for `<summary>`, write short summary of the change, but in a cryptic/poetic way in line with the game)
+(for `<message>`, write a cryptic/poetic message that's vaguely related to the changes, in line with the tone of the game)
 
 Then tell them:
 "The game URL https://arnaudh.github.io/company-of-ourselves will have your changes within ~30 seconds (hard refresh with Cmd+Shift+R)."
