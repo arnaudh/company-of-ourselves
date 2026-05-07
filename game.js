@@ -602,7 +602,67 @@ class MainScene extends Phaser.Scene {
       // Directory listing may not be available depending on host configuration.
     }
 
-    return Array.from(discoveredFilePaths).sort();
+    if (discoveredFilePaths.size === 0) {
+      const githubApiRunFiles = await this.discoverPastRunFilesFromGitHubApi();
+      for (const runFilePath of githubApiRunFiles) {
+        discoveredFilePaths.add(runFilePath);
+      }
+    }
+
+    return Array.from(discoveredFilePaths).sort((pathA, pathB) => {
+      const runNumberA = this.extractRunNumberFromPath(pathA) ?? 0;
+      const runNumberB = this.extractRunNumberFromPath(pathB) ?? 0;
+      if (runNumberA !== runNumberB) return runNumberA - runNumberB;
+      return pathA.localeCompare(pathB);
+    });
+  }
+
+  getGitHubPagesRepoContext() {
+    if (typeof window === "undefined" || !window.location) return null;
+    const hostMatch = window.location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i);
+    if (!hostMatch) return null;
+
+    const pathSegments = window.location.pathname.split("/").filter(Boolean);
+    const repo = pathSegments[0];
+    if (!repo) return null;
+
+    return {
+      owner: hostMatch[1],
+      repo,
+    };
+  }
+
+  async discoverPastRunFilesFromGitHubApi() {
+    const repoContext = this.getGitHubPagesRepoContext();
+    if (!repoContext) return [];
+
+    try {
+      const response = await fetch(
+        `https://api.github.com/repos/${repoContext.owner}/${repoContext.repo}/git/trees/main?recursive=1`,
+        {
+          cache: "no-store",
+          headers: {
+            Accept: "application/vnd.github+json",
+          },
+        },
+      );
+      if (!response.ok) return [];
+
+      const treeResponse = await response.json();
+      if (!Array.isArray(treeResponse?.tree)) return [];
+
+      return treeResponse.tree
+        .filter(
+          (entry) =>
+            entry?.type === "blob" &&
+            typeof entry.path === "string" &&
+            /^runs\/\d+\/run\.json$/.test(entry.path),
+        )
+        .map((entry) => entry.path);
+    } catch (error) {
+      console.warn("Unable to query GitHub API for past runs:", error);
+      return [];
+    }
   }
 
   parseReplayFrames(runFileData) {

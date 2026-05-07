@@ -25,7 +25,7 @@ def main():
     project_dir = os.path.dirname(os.path.abspath(__file__))
     handler = partial(SimpleHTTPRequestHandler, directory=project_dir)
     server = ThreadingHTTPServer(("127.0.0.1", args.port), handler)
-    game_url = f"http://127.0.0.1:{args.port}/game.html"
+    game_url = f"http://127.0.0.1:{args.port}/"
 
     print(f"Serving {project_dir}")
     print(f"Game URL: {game_url}")
