@@ -261,7 +261,7 @@ class MainScene extends Phaser.Scene {
       this.triggerStoryEvent("first-jump");
     }
     if (this.captureDownloadKey && Phaser.Input.Keyboard.JustDown(this.captureDownloadKey)) {
-      this.downloadCapture();
+      this.endTurn();
     }
 
     const halfW = body.width / 2;
@@ -331,7 +331,7 @@ class MainScene extends Phaser.Scene {
       this.hasReachedDocument = true;
       this.documentPickup?.destroy();
       this.documentPickup = null;
-      this.downloadCapture();
+      this.endTurn();
     }
   }
 
@@ -746,7 +746,7 @@ class MainScene extends Phaser.Scene {
     }
   }
 
-  downloadCapture(options = {}) {
+  endTurn(options = {}) {
     const { announce = true } = options;
     if (this.captureDownloadInProgress) return;
     if (this.hasDownloadedCapture) {
