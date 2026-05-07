@@ -18,7 +18,6 @@ const PLAY_AREA = {
 
 const GAME_ID = "company-of-ourselves";
 const PLAYER_TURN = "hiike";
-const PULSAR_SHADOW_MEET_MIN_ELAPSED_MS = 3000;
 const PULSAR_SHADOW_MEET_DISTANCE = 34;
 const PULSAR_INTRO_LINE_DURATION_MS = 4600;
 const PULSAR_DOCUMENT_SPAWN_DELAY_MS = 3000;
@@ -133,7 +132,6 @@ class MainScene extends Phaser.Scene {
     this.playerTurn = PLAYER_TURN;
     this.loadedRunCountForGame = 0;
     this.loadedRunMaxNumberForGame = 0;
-    this.gameplayStartTime = 0;
     this.hasTriggeredPulsarShadowSequence = false;
     this.storySequenceLocked = false;
     this.storySequenceTimer = null;
@@ -211,7 +209,6 @@ class MainScene extends Phaser.Scene {
     this.cursors = this.input.keyboard.createCursorKeys();
     this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.resetActionRecording();
-    this.gameplayStartTime = this.time.now;
     this.initRecording();
     this.loadPastRunReplays();
 
@@ -230,7 +227,7 @@ class MainScene extends Phaser.Scene {
     this.events.on("shutdown", this.cleanupShadowReplays, this);
     this.events.on("destroy", this.cleanupShadowReplays, this);
 
-    this.showStoryText("I wake up in a painted room.\nArrow keys move me. Up jumps.", {
+    this.showStoryText("I wake up in a painted room.\nArrow keys move me.", {
       autoHideMs: 2600,
     });
 
@@ -669,9 +666,9 @@ class MainScene extends Phaser.Scene {
 
     zip.file(`${runNumber}/run.webm`, recording.blob);
     zip.file(`${runNumber}/run.json`, JSON.stringify(movementData, null, 2));
-    const instructionsResponse = await fetch("assets/instructions.md");
+    const instructionsResponse = await fetch("assets/instructions.txt");
     const instructionsContent = await instructionsResponse.text();
-    zip.file("instructions.md", instructionsContent);
+    zip.file("instructions.txt", instructionsContent);
 
     const zipBlob = await zip.generateAsync({ type: "blob" });
     this.triggerFileDownload(zipBlob, zipName);
@@ -712,11 +709,11 @@ class MainScene extends Phaser.Scene {
   tryTriggerPulsarShadowSequence() {
     if (this.storySequenceLocked || this.hasTriggeredPulsarShadowSequence) return;
     if (this.normalizePlayerTurn(this.playerTurn) !== "hiike") return;
-    if (this.time.now - this.gameplayStartTime < PULSAR_SHADOW_MEET_MIN_ELAPSED_MS) return;
     if (!this.player?.active) return;
 
     const hasMetPulsarShadow = this.shadowReplays.some((replay) => {
       if (replay.playerTurn !== "pulsar") return false;
+      if (!replay.isComplete) return false;
       if (!replay.sprite?.active) return false;
       return (
         Phaser.Math.Distance.Between(this.player.x, this.player.y, replay.sprite.x, replay.sprite.y) <
