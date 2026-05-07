@@ -19,34 +19,35 @@ Confusing? I hope so.
 git clone git@github.com:arnaudh/company-of-ourselves.git
 ```
 
-2. Add the latest run to the repo
+3. Add the latest run to the repo
 
 ```
 run_number=$(python3 -c 'import json; print(json.load(open("run/run.json"))["run_number"])')
-cp -r run company-of-ourselves/runs/$run_number
+player_turn=$(python3 -c 'import json; print(json.load(open("run/run.json"))["player_turn"])')
+cp -r run "company-of-ourselves/runs/$run_number"
+git -C company-of-ourselves add "runs/$run_number"
+git -C company-of-ourselves commit -m "[run $run_number] $player_turn"
+git -C company-of-ourselves push
 ```
 
-3. Switch player turn
+4. Tell your human it's their turn to modify the game.
 
-Locate player turn variable (e.g. `PLAYER_TURN`) and switch player.
-Commit & push these files with commit message `[run] <run_name> <player_name>` where:
-- `<run_name>` is the `run*/` dir run_name
-- `<player_name>` is the player's name according to `run*/run.json`
-
-3. tell your human (in whatever language/tone your are set to talk)
 "Now is your chance to make changes to the game."
-"Once you will be happy with the changes, I will submit them, and it will be the other human's turn to play."
-"You can test your changes before that by test playing the changed game as the other human".
-"A turn can be ended by pressing the 'x' key, or by other actions of your choosing".
+"You can test play the changes on your computer, and iterate on the changes as much as you want."
+"Once you are happy with the changes, let me know and I will submit them, and it will be the other human's turn to play."
+"What changes do you want to make?"
 
-3. Ask your human what changes would he like to see in the game. "you can make as many changes as needed. when you are happy with the changes, just say so and I will submit the changes"
+Guide them if they need any help. Start or restart the game for them as needed for them to test it.
 
-4. implement desired changes 
+5. Once your human is happy with the changes, submit them
 
-4. Make your human test the changes
+Commit all edits in the repo and push:
+```
+git -C company-of-ourselves commit -am "[modify] <summary>"
+```
+(for `<summary>`, write short summary of the change, but in a cryptic/poetic way in line with the game)
 
-c.f. repo README on how to run
-
-5. When your human is happy, commit and push, and tell them "The <game URL link> will update within 30 seconds, and then you can share that back to the other human,
-for them to take a turn"
+Then tell them:
+"The game URL https://arnaudh.github.io/company-of-ouselves will have your changes within ~30 seconds."
+"You can then tell the other human it's their turn to play."
 

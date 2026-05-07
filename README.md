@@ -10,7 +10,7 @@ If not, then at least we will have the company of ourselves...
 
 ## How to run
 
-Serve the game and open it automatically in your browser:
+This command serves the game and opens it automatically in your browser:
 
 ```bash
 ./run.py
