@@ -603,8 +603,8 @@ class MainScene extends Phaser.Scene {
     }
 
     if (discoveredFilePaths.size === 0) {
-      const githubApiRunFiles = await this.discoverPastRunFilesFromGitHubApi();
-      for (const runFilePath of githubApiRunFiles) {
+      const probedRunFiles = await this.discoverPastRunFilesByProbing();
+      for (const runFilePath of probedRunFiles) {
         discoveredFilePaths.add(runFilePath);
       }
     }
@@ -617,52 +617,50 @@ class MainScene extends Phaser.Scene {
     });
   }
 
-  getGitHubPagesRepoContext() {
-    if (typeof window === "undefined" || !window.location) return null;
-    const hostMatch = window.location.hostname.match(/^([a-z0-9-]+)\.github\.io$/i);
-    if (!hostMatch) return null;
-
-    const pathSegments = window.location.pathname.split("/").filter(Boolean);
-    const repo = pathSegments[0];
-    if (!repo) return null;
-
-    return {
-      owner: hostMatch[1],
-      repo,
-    };
-  }
-
-  async discoverPastRunFilesFromGitHubApi() {
-    const repoContext = this.getGitHubPagesRepoContext();
-    if (!repoContext) return [];
+  async runFileExists(runFilePath) {
+    const requestOptions = { cache: "no-store" };
+    const runFileUrl = `./${runFilePath}`;
 
     try {
-      const response = await fetch(
-        `https://api.github.com/repos/${repoContext.owner}/${repoContext.repo}/git/trees/main?recursive=1`,
-        {
-          cache: "no-store",
-          headers: {
-            Accept: "application/vnd.github+json",
-          },
-        },
-      );
-      if (!response.ok) return [];
-
-      const treeResponse = await response.json();
-      if (!Array.isArray(treeResponse?.tree)) return [];
-
-      return treeResponse.tree
-        .filter(
-          (entry) =>
-            entry?.type === "blob" &&
-            typeof entry.path === "string" &&
-            /^runs\/\d+\/run\.json$/.test(entry.path),
-        )
-        .map((entry) => entry.path);
+      const headResponse = await fetch(runFileUrl, {
+        ...requestOptions,
+        method: "HEAD",
+      });
+      if (headResponse.ok) return true;
+      if (headResponse.status !== 405) return false;
     } catch (error) {
-      console.warn("Unable to query GitHub API for past runs:", error);
-      return [];
+      // Fall back to GET when HEAD is unsupported or blocked.
     }
+
+    try {
+      const getResponse = await fetch(runFileUrl, requestOptions);
+      return getResponse.ok;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  async discoverPastRunFilesByProbing() {
+    const discoveredFilePaths = [];
+    const maxRunLookups = 200;
+    const maxConsecutiveMisses = 3;
+    let consecutiveMisses = 0;
+
+    for (let runNumber = 1; runNumber <= maxRunLookups; runNumber += 1) {
+      const runFilePath = `runs/${runNumber}/run.json`;
+      const exists = await this.runFileExists(runFilePath);
+
+      if (exists) {
+        discoveredFilePaths.push(runFilePath);
+        consecutiveMisses = 0;
+        continue;
+      }
+
+      consecutiveMisses += 1;
+      if (consecutiveMisses >= maxConsecutiveMisses) break;
+    }
+
+    return discoveredFilePaths;
   }
 
   parseReplayFrames(runFileData) {
