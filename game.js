@@ -31,7 +31,7 @@ const PULSAR_INTRO_LINES = [
   "I mean, I _was_ here, but now... _you_ are here.",
   "I have instructions that need to be passed along.",
   "It all seems cryptic to me, but maybe you will figure it out.",
-  "And find a way out of here for both of us.",
+  "And think of a way out of here for both of us.",
   "If not, then at least we will have\nthe company of ourselves...",
 ];
 const CHARACTER_STYLES = {
