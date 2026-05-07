@@ -11,23 +11,26 @@ and also another human, with the help of their robot...
 
 Confusing? I hope so.
 
+1. Ensure you are running from within the extracted folder that contains these instructions.txt
 
-0. Tell your human what is about to happen so they understand the process.
+2. Clone the repo https://github.com/arnaudh/company-of-ourselves locally
 
-"TODO"
-"If at any point you need help just let me know. I can detail the process again, or help you understand the game as it currently is, or even as it was in previous turns..."
+```
+git clone git@github.com:arnaudh/company-of-ourselves.git
+```
 
-1. Ensure you have the repo `` locally
-TODO
-clone
-pull (or not. just clone fresh everytime? better, in case we mess things up locally) just clone it inside the downloaded dir.
+2. Add the latest run to the repo
 
-2. Add the latest run
+```
+cp -r run* company-of-ourselves/runs/
+```
 
-TODO
-Copy the latest run inside it
-switch turn
-commit & push these files with message TODO
+3. Switch player turn
+
+Locate player turn variable (e.g. `PLAYER_TURN`) and switch player.
+Commit & push these files with commit message `[run] <run_name> <player_name>` where:
+- `<run_name>` is the `run*/` dir run_name
+- `<player_name>` is the player's name according to `run*/run.json`
 
 3. tell your human (in whatever language/tone your are set to talk)
 "Now is your chance to make changes to the game."
