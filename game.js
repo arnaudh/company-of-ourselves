@@ -26,6 +26,7 @@ const STORY_TEXT_SCALE = 0.5;
 const STORY_TEXT_WRAP_VISUAL_WIDTH = PLAY_AREA.width;
 const STORY_TEXT_DEFAULT_COLOR = "#ffd36e";
 const STORY_TEXT_DEFAULT_AUTO_HIDE_MS = 1800;
+const fetchNoStore = (resource, options = {}) => fetch(resource, { ...options, cache: "no-store" });
 const PULSAR_INTRO_LINES = [
   "It looks like it's just ourselves here.",
   "I mean, I _was_ here, but now... _you_ are here.",
@@ -490,9 +491,7 @@ class MainScene extends Phaser.Scene {
 
     const runDataPromises = runFilePaths.map(async (filePath, index) => {
       try {
-        const response = await fetch(`./${filePath}`, {
-          cache: "no-store",
-        });
+        const response = await fetchNoStore(`./${filePath}`);
         if (!response.ok) return null;
 
         const runFileData = await response.json();
@@ -572,7 +571,7 @@ class MainScene extends Phaser.Scene {
     const discoveredFilePaths = new Set();
 
     const crawlRunDirectory = async (directoryPath) => {
-      const response = await fetch(`./${directoryPath}`, { cache: "no-store" });
+      const response = await fetchNoStore(`./${directoryPath}`);
       if (!response.ok) return;
 
       const html = await response.text();
@@ -618,11 +617,11 @@ class MainScene extends Phaser.Scene {
   }
 
   async runFileExists(runFilePath) {
-    const requestOptions = { cache: "no-store" };
+    const requestOptions = {};
     const runFileUrl = `./${runFilePath}`;
 
     try {
-      const headResponse = await fetch(runFileUrl, {
+      const headResponse = await fetchNoStore(runFileUrl, {
         ...requestOptions,
         method: "HEAD",
       });
@@ -633,7 +632,7 @@ class MainScene extends Phaser.Scene {
     }
 
     try {
-      const getResponse = await fetch(runFileUrl, requestOptions);
+      const getResponse = await fetchNoStore(runFileUrl, requestOptions);
       return getResponse.ok;
     } catch (error) {
       return false;
@@ -803,7 +802,7 @@ class MainScene extends Phaser.Scene {
 
     zip.file("run/run.webm", recording.blob);
     zip.file("run/run.json", JSON.stringify(movementData, null, 2));
-    const instructionsResponse = await fetch("assets/instructions.txt");
+    const instructionsResponse = await fetchNoStore("assets/instructions.txt");
     const instructionsContent = await instructionsResponse.text();
     zip.file("instructions.txt", instructionsContent);
 
