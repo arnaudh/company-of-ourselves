@@ -22,6 +22,18 @@ const PULSAR_SHADOW_MEET_DISTANCE = 34;
 const PULSAR_INTRO_LINE_DURATION_MS = 4600;
 const PULSAR_DOCUMENT_SPAWN_DELAY_MS = 3000;
 const DOCUMENT_PICKUP_DISTANCE = 32;
+const HANGMAN_WORDS = ["THE", "HANKERS"];
+const HANGMAN_SECRET = HANGMAN_WORDS.join(" ");
+const HANGMAN_PHRASE_SLOTS = [...HANGMAN_WORDS[0], " ", ...HANGMAN_WORDS[1]];
+const FLOWER_BUTTON_DISTANCE = 36;
+const LETTER_TILE_SIZE = 32;
+const LETTER_TILE_GAP = 22;
+const LETTER_TILE_ROW_GAP = 42;
+const LETTER_TILE_COLS = 13;
+const LETTER_TILE_FONT_SIZE = 20;
+const FALLING_LETTER_GRAVITY = 900;
+const HANGMAN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+const HANGMAN_LETTER_COUNT = HANGMAN_ALPHABET.length;
 const STORY_TEXT_SCALE = 0.5;
 const STORY_TEXT_WRAP_VISUAL_WIDTH = PLAY_AREA.width;
 const STORY_TEXT_DEFAULT_COLOR = "#ffd36e";
@@ -35,6 +47,15 @@ const PULSAR_INTRO_LINES = [
   "And think of a way out of here for both of us.",
   "If not, then at least we will have\nthe company of ourselves...",
 ];
+const FLOWER_WHISPER_LINE = "This flower is trying to tell me something";
+const FLOWER_MOVEMENT_LINE = "this flower does not like movement it seems";
+const FLOWER_RELAX_LINE = "Maybe i should just sit relax and think for a moment";
+const FLOWER_BORED_LINE =
+  "I am getting bored watching this flower , maybe i should start writing a Letter";
+const FLOWER_MEMORY_LINE =
+  "Feels good to take time sometimes, my memory starts coming back : We were a team before !";
+const FLOWER_BORED_DELAY_MS = 2 * 60 * 1000;
+const FLOWER_MEMORY_DELAY_MS = 3 * 60 * 1000;
 const CHARACTER_STYLES = {
   pulsar: {
     textureKey: "pulsar",
@@ -143,6 +164,23 @@ class MainScene extends Phaser.Scene {
     this.hasReachedDocument = false;
     this.movementLocked = false;
     this.hasTriggeredTurnEndSequence = false;
+    this.actionKey = null;
+    this.hangmanActive = false;
+    this.phraseGuessSlots = [];
+    this.hangmanWon = false;
+    this.isEvaluatingPhrase = false;
+    this.hangmanDisplayText = null;
+    this.flowerGraphics = null;
+    this.hasReleasedAlphabet = false;
+    this.letterTiles = null;
+    this.flowerReadyTime = 0;
+    this.alphabetReleasedTime = 0;
+    this.showingFlowerProximityMessage = false;
+    this.hasSeenFlowerReadyWhisper = false;
+    this.flowerRelaxRevealActive = false;
+    this.flowerMemoryRevealActive = false;
+    this.playerWasAirborne = false;
+    this.lastLandingTile = null;
   }
 
   create() {
@@ -184,7 +222,9 @@ class MainScene extends Phaser.Scene {
     this.add.rectangle(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height - 2, PLAY_AREA.width, 4, 0x3cae3f);
     this.add.rectangle(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height - 6, PLAY_AREA.width, 2, 0x2f8f34, 0.5);
 
-    this.flowerPosition = this.drawLeftFlower();
+    const flowerData = this.drawLeftFlower();
+    this.flowerPosition = flowerData.position;
+    this.flowerGraphics = flowerData.graphics;
 
     this.ground = this.add.rectangle(
       PLAY_AREA.x + PLAY_AREA.width / 2,
@@ -197,14 +237,13 @@ class MainScene extends Phaser.Scene {
     this.physics.add.existing(this.ground, true);
 
     this.cursors = this.input.keyboard.createCursorKeys();
+    this.actionKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
     this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
     this.initRecording();
     this.loadPastRunReplays().finally(() => {
       this.createPlayer();
       this.resetActionRecording();
-      this.current_player_says("I wake up in a painted room.\nArrow keys move me.", {
-        autoHideMs: 2600,
-      });
+      this.initHangmanState();
     });
 
     // Some browsers block autoplay until first user interaction.
@@ -241,8 +280,9 @@ class MainScene extends Phaser.Scene {
     flower.fillCircle(x + 4, y - 22, 3);
     flower.fillCircle(x - 4, y - 18, 3);
     flower.fillCircle(x + 4, y - 18, 3);
+    flower.setDepth(6);
 
-    return { x, y: y - 20 };
+    return { position: { x, y: y - 20 }, graphics: flower };
   }
 
   update() {
@@ -274,31 +314,106 @@ class MainScene extends Phaser.Scene {
     this.player.x = Phaser.Math.Clamp(this.player.x, PLAY_AREA.x + halfW, PLAY_AREA.x + PLAY_AREA.width - halfW);
     this.recordPlayerFrame();
     this.updateShadowReplays();
-    this.tryTriggerPulsarShadowSequence();
-    this.updateStoryTriggers();
+    this.updateFlowerProximityMessages();
+    this.updateHangman();
+  }
+
+  isAnyoneMoving() {
+    if (this.player?.body) {
+      const body = this.player.body;
+      const playerIsMoving =
+        Math.abs(body.velocity.x) > 10 || Math.abs(body.velocity.y) > 10 || !body.blocked.down;
+      if (playerIsMoving) return true;
+    }
+
+    return this.shadowReplays.some((replay) => replay.sprite?.active && !replay.isComplete);
+  }
+
+  isPlayerNearFlower() {
+    if (!this.flowerPosition || !this.player?.active) return false;
+    return (
+      Phaser.Math.Distance.Between(this.player.x, this.player.y, this.flowerPosition.x, this.flowerPosition.y) <
+      FLOWER_BUTTON_DISTANCE
+    );
+  }
+
+  isHiikeGhostFinished() {
+    const hiikeReplay = this.shadowReplays.find(
+      (replay) => this.normalizePlayerTurn(replay.playerTurn) === "hiike" && replay.sprite?.active,
+    );
+    if (!hiikeReplay) return true;
+    return hiikeReplay.isComplete;
+  }
+
+  canInteractWithFlower() {
+    return this.isHiikeGhostFinished() && !this.isAnyoneMoving();
+  }
+
+  markFlowerReadyIfNeeded() {
+    if (this.hasReleasedAlphabet || this.flowerReadyTime > 0) return;
+    if (this.canInteractWithFlower()) {
+      this.flowerReadyTime = this.time.now;
+    }
+  }
+
+  isFlowerBoredMessageAvailable() {
+    return this.flowerReadyTime > 0 && this.time.now - this.flowerReadyTime >= FLOWER_BORED_DELAY_MS;
+  }
+
+  isPostAlphabetMemoryAvailable() {
+    if (!this.hasReleasedAlphabet || !this.alphabetReleasedTime) return false;
+    return this.time.now - this.alphabetReleasedTime >= FLOWER_MEMORY_DELAY_MS;
+  }
+
+  showFlowerProximityMessage(text) {
+    this.showingFlowerProximityMessage = true;
+    this.showStoryText(text, { autoHideMs: 0, force: true });
+  }
+
+  hideFlowerProximityMessage() {
+    if (!this.showingFlowerProximityMessage) return;
+    this.showingFlowerProximityMessage = false;
+    this.hideStoryText();
+  }
+
+  updateFlowerProximityMessages() {
+    if (!this.flowerPosition || !this.player?.active) return;
+
+    this.markFlowerReadyIfNeeded();
+    const nearFlower = this.isPlayerNearFlower();
+
+    if (this.hasReleasedAlphabet) {
+      if (nearFlower && this.flowerMemoryRevealActive && this.isPostAlphabetMemoryAvailable()) {
+        this.showFlowerProximityMessage(FLOWER_MEMORY_LINE);
+      } else if (nearFlower && this.flowerRelaxRevealActive && !this.isPostAlphabetMemoryAvailable()) {
+        this.showFlowerProximityMessage(FLOWER_RELAX_LINE);
+      } else {
+        this.hideFlowerProximityMessage();
+      }
+      return;
+    }
+
+    if (!nearFlower) {
+      this.hideFlowerProximityMessage();
+      return;
+    }
+
+    if (!this.canInteractWithFlower()) {
+      if (!this.hasSeenFlowerReadyWhisper) {
+        this.showFlowerProximityMessage(FLOWER_MOVEMENT_LINE);
+      }
+      return;
+    }
+
+    this.hasSeenFlowerReadyWhisper = true;
+    if (this.isFlowerBoredMessageAvailable()) {
+      this.showFlowerProximityMessage(FLOWER_BORED_LINE);
+    } else {
+      this.showFlowerProximityMessage(FLOWER_WHISPER_LINE);
+    }
   }
 
   updateStoryTriggers() {
-    if (this.storySequenceLocked) return;
-    if (!this.flowerPosition) return;
-
-    const distanceToFlower = Phaser.Math.Distance.Between(
-      this.player.x,
-      this.player.y,
-      this.flowerPosition.x,
-      this.flowerPosition.y,
-    );
-    const nearFlower = distanceToFlower < 34;
-
-    if (nearFlower && !this.wasNearFlower) {
-      this.triggerStoryEvent("reach-flower");
-      this.hasReachedFlower = true;
-    } else if (!nearFlower && this.wasNearFlower) {
-      this.triggerStoryEvent("leave-flower");
-    }
-
-    this.wasNearFlower = nearFlower;
-
     if (this.hasSpawnedDocument && !this.hasReachedDocument && this.documentPosition) {
       const distanceToDocument = Phaser.Math.Distance.Between(
         this.player.x,
@@ -315,20 +430,8 @@ class MainScene extends Phaser.Scene {
   triggerStoryEvent(eventName) {
     if (this.storySequenceLocked) return;
     if (eventName === "first-jump" && this.storyEventsFired.has("first-jump")) return;
-    if (eventName === "reach-flower") {
-      this.current_player_says("A tiny flower waits at the edge.\nI think it understands me.", { autoHideMs: 0 });
-      this.storyEventsFired.add("reach-flower");
-      return;
-    }
-
-    if (eventName === "leave-flower") {
-      this.current_player_says("I step away, and the feeling fades.", { autoHideMs: 1800 });
-      return;
-    }
-
-    if (eventName === "first-jump") {
-      this.current_player_says("I test gravity with a hopeful jump.", { autoHideMs: 1200 });
-      this.storyEventsFired.add("first-jump");
+    if (eventName === "reach-flower" || eventName === "leave-flower" || eventName === "first-jump") {
+      this.storyEventsFired.add(eventName);
       return;
     }
 
@@ -855,47 +958,369 @@ class MainScene extends Phaser.Scene {
     }
     this.documentPickup?.destroy();
     this.documentPickup = null;
+    this.cleanupHangman();
     for (const replay of this.shadowReplays) {
       replay.sprite?.destroy();
     }
     this.shadowReplays = [];
   }
 
-  tryTriggerPulsarShadowSequence() {
-    if (this.storySequenceLocked || this.hasTriggeredPulsarShadowSequence) return;
-    if (this.normalizePlayerTurn(this.playerTurn) !== "hiike") return;
-    if (!this.player?.active) return;
+  initHangmanState() {
+    if (this.hangmanActive) return;
+    this.hangmanActive = true;
+    this.phraseGuessSlots = this.createEmptyPhraseSlots();
+    this.hangmanWon = false;
+    this.isEvaluatingPhrase = false;
+    this.hangmanDisplayText = null;
 
-    const hasMetPulsarShadow = this.shadowReplays.some((replay) => {
-      if (replay.playerTurn !== "pulsar") return false;
-      if (!replay.isComplete) return false;
-      if (!replay.sprite?.active) return false;
-      return (
-        Phaser.Math.Distance.Between(this.player.x, this.player.y, replay.sprite.x, replay.sprite.y) <
-        PULSAR_SHADOW_MEET_DISTANCE
-      );
-    });
-
-    if (!hasMetPulsarShadow) return;
-    this.startPulsarShadowSequence();
+    this.letterTiles = this.add.group();
+    this.letterTileColliderAdded = false;
+    this.playerWasAirborne = false;
+    this.lastLandingTile = null;
   }
 
-  startPulsarShadowSequence() {
-    this.hasTriggeredPulsarShadowSequence = true;
-    this.storySequenceLocked = true;
-    this.hideStoryText();
-    this.playStorySequence(
-      PULSAR_INTRO_LINES,
-      PULSAR_INTRO_LINE_DURATION_MS,
-      () => {
-        this.storySequenceTimer = this.time.delayedCall(PULSAR_DOCUMENT_SPAWN_DELAY_MS, () => {
-          this.storySequenceTimer = null;
-          this.spawnDocumentPickup();
-          this.storySequenceLocked = false;
-        });
-      },
-      { speaker: "pulsar" },
+  revealHangmanPhrase() {
+    if (this.hangmanDisplayText?.active) return;
+
+    this.hangmanDisplayText = this.add
+      .text(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + 18, this.getHangmanBlankDisplay(), {
+        fontFamily: "Georgia, Times New Roman, serif",
+        fontSize: "34px",
+        color: "#fff4c8",
+        align: "center",
+        letterSpacing: 8,
+        stroke: "#4a3a24",
+        strokeThickness: 5,
+      })
+      .setOrigin(0.5, 0)
+      .setDepth(8);
+  }
+
+  animateFlowerPress() {
+    if (!this.flowerGraphics?.active) return;
+    this.tweens.add({
+      targets: this.flowerGraphics,
+      scaleY: 0.88,
+      duration: 120,
+      yoyo: true,
+      ease: "Quad.Out",
+    });
+  }
+
+  releaseAlphabetFromFlower() {
+    if (!this.hangmanActive || this.hangmanWon || this.hasReleasedAlphabet) return;
+    this.hasReleasedAlphabet = true;
+    this.alphabetReleasedTime = this.time.now;
+    this.hideFlowerProximityMessage();
+    this.animateFlowerPress();
+    this.revealHangmanPhrase();
+
+    const letters = HANGMAN_ALPHABET.split("");
+
+    letters.forEach((letterChar, index) => {
+      this.time.delayedCall(index * 55, () => this.spawnLetterTile(letterChar, index));
+    });
+  }
+
+  createEmptyPhraseSlots() {
+    return HANGMAN_PHRASE_SLOTS.map((slot) => (slot === " " ? " " : "-"));
+  }
+
+  getHangmanBlankDisplay() {
+    return this.formatPhraseSlots(this.createEmptyPhraseSlots());
+  }
+
+  formatPhraseSlots(slots) {
+    let wordIndex = 0;
+    return HANGMAN_WORDS.map((word) => {
+      const segment = slots.slice(wordIndex, wordIndex + word.length).join("");
+      wordIndex += word.length + 1;
+      return segment;
+    }).join(" ");
+  }
+
+  getPhraseGuessString() {
+    return this.formatPhraseSlots(this.phraseGuessSlots);
+  }
+
+  updateHangmanDisplay() {
+    if (!this.hangmanDisplayText?.active) return;
+    this.hangmanDisplayText.setText(this.getPhraseGuessString());
+  }
+
+  addLetterToPhraseGuess(letterChar) {
+    const letter = typeof letterChar === "string" ? letterChar.toUpperCase() : "";
+    if (!letter) return false;
+
+    for (let index = 0; index < this.phraseGuessSlots.length; index += 1) {
+      if (this.phraseGuessSlots[index] === "-") {
+        this.phraseGuessSlots[index] = letter;
+        this.updateHangmanDisplay();
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  isPhraseGuessComplete() {
+    return this.phraseGuessSlots.every((slot) => slot !== "-");
+  }
+
+  playHangmanBuzzSound() {
+    const audioContext = this.sound?.context;
+    if (audioContext?.state === "suspended") {
+      audioContext.resume();
+    }
+
+    if (audioContext && this.sound?.masterVolumeNode) {
+      const startTime = audioContext.currentTime;
+      const oscillator = audioContext.createOscillator();
+      const gain = audioContext.createGain();
+      oscillator.type = "square";
+      oscillator.frequency.setValueAtTime(90, startTime);
+      oscillator.frequency.exponentialRampToValueAtTime(55, startTime + 0.35);
+      gain.gain.setValueAtTime(0.22, startTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.5);
+      oscillator.connect(gain);
+      gain.connect(this.sound.masterVolumeNode);
+      oscillator.start(startTime);
+      oscillator.stop(startTime + 0.5);
+    }
+
+    if (this.cache.audio.exists("sad")) {
+      this.sound.play("sad", { volume: 0.48, detune: -700 });
+    }
+  }
+
+  playHangmanSuccessSound() {
+    if (this.cache.audio.exists("light")) {
+      this.sound.play("light", { volume: 0.45 });
+    }
+  }
+
+  resetHangmanAttempt() {
+    this.phraseGuessSlots = this.createEmptyPhraseSlots();
+    this.lastLandingTile = null;
+    this.isEvaluatingPhrase = false;
+
+    if (this.hangmanDisplayText?.active) {
+      this.hangmanDisplayText.setText(this.getHangmanBlankDisplay());
+    }
+
+    if (!this.letterTiles) return;
+
+    this.letterTiles.children.each((tilePlatform) => {
+      tilePlatform.hasBeenStomped = false;
+      return true;
+    });
+  }
+
+  evaluatePhraseAfterAllLettersTried() {
+    if (this.hangmanWon || this.isEvaluatingPhrase || !this.isPhraseGuessComplete()) return;
+    this.isEvaluatingPhrase = true;
+
+    const guess = this.getPhraseGuessString();
+    if (guess === HANGMAN_SECRET) {
+      this.hangmanWon = true;
+      this.playHangmanSuccessSound();
+      this.cameras.main.flash(280, 255, 244, 180, true);
+      return;
+    }
+
+    this.playHangmanBuzzSound();
+    this.resetHangmanAttempt();
+  }
+
+  getLetterTileSlot(index) {
+    const col = index % LETTER_TILE_COLS;
+    const row = Math.floor(index / LETTER_TILE_COLS);
+    const pitch = LETTER_TILE_SIZE + LETTER_TILE_GAP;
+    const gridWidth = LETTER_TILE_COLS * pitch - LETTER_TILE_GAP;
+    const startX = PLAY_AREA.x + (PLAY_AREA.width - gridWidth) / 2 + LETTER_TILE_SIZE / 2;
+    const groundSurfaceY = PLAY_AREA.y + PLAY_AREA.height - 6;
+    const groundRowCenterY = groundSurfaceY + LETTER_TILE_SIZE / 2;
+    const rowStep = LETTER_TILE_SIZE + LETTER_TILE_ROW_GAP;
+
+    return {
+      x: startX + col * pitch,
+      y: groundRowCenterY - row * rowStep,
+      row,
+    };
+  }
+
+  spawnLetterTile(letterChar, index) {
+    if (!this.hangmanActive || this.hangmanWon || !this.letterTiles) return;
+    if (typeof letterChar !== "string") return;
+
+    const char = letterChar.toUpperCase();
+    const slot = this.getLetterTileSlot(index);
+    const spawnY = PLAY_AREA.y - 36;
+
+    const tilePlatform = this.add
+      .rectangle(slot.x, spawnY, LETTER_TILE_SIZE, LETTER_TILE_SIZE, 0x5d4e34, 0.96)
+      .setStrokeStyle(2, 0xd4bc7a)
+      .setDepth(6);
+    const tileLabel = this.add
+      .text(slot.x, spawnY, char, {
+        fontFamily: "Arial, sans-serif",
+        fontSize: `${LETTER_TILE_FONT_SIZE}px`,
+        color: "#fff8dc",
+        stroke: "#2a2115",
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5)
+      .setDepth(7);
+
+    tilePlatform.letterChar = char;
+    tilePlatform.hasBeenStomped = false;
+    tilePlatform.isLanded = false;
+    tilePlatform.slotX = slot.x;
+    tilePlatform.slotY = slot.y;
+    tilePlatform.tileLabel = tileLabel;
+
+    this.letterTiles.add(tilePlatform);
+
+    this.tweens.add({
+      targets: [tilePlatform, tileLabel],
+      y: slot.y,
+      duration: 460 + index * 22,
+      ease: "Bounce.Out",
+      onComplete: () => this.enableLetterTilePlatform(tilePlatform),
+    });
+  }
+
+  enableLetterTilePlatform(tilePlatform) {
+    if (!tilePlatform?.active) return;
+    tilePlatform.isLanded = true;
+    tilePlatform.x = tilePlatform.slotX;
+    tilePlatform.y = tilePlatform.slotY;
+    if (tilePlatform.tileLabel?.active) {
+      tilePlatform.tileLabel.x = tilePlatform.slotX;
+      tilePlatform.tileLabel.y = tilePlatform.slotY;
+    }
+
+    this.physics.add.existing(tilePlatform, true);
+    tilePlatform.body.setSize(LETTER_TILE_SIZE, LETTER_TILE_SIZE, true);
+
+    if (!this.letterTileColliderAdded) {
+      this.physics.add.collider(this.player, this.letterTiles);
+      this.physics.add.collider(this.letterTiles, this.letterTiles);
+      this.letterTileColliderAdded = true;
+    }
+  }
+
+  getTileUnderPlayer() {
+    if (!this.player?.body || !this.letterTiles) return null;
+
+    let landedTile = null;
+    this.letterTiles.children.each((tilePlatform) => {
+      if (!tilePlatform?.active || !tilePlatform.isLanded) return true;
+      if (!this.isPlayerOnTile(tilePlatform)) return true;
+      landedTile = tilePlatform;
+      return false;
+    });
+
+    return landedTile;
+  }
+
+  isPlayerOnTile(tilePlatform) {
+    if (!this.player?.body || !tilePlatform?.active || !tilePlatform.isLanded) return false;
+
+    const half = LETTER_TILE_SIZE / 2;
+    const tileTop = tilePlatform.y - half;
+    const feetX = this.player.x;
+    const feetY = this.player.body.bottom;
+    const onTileX = Math.abs(feetX - tilePlatform.x) <= half + 6;
+    const onTileY = feetY >= tileTop - 10 && feetY <= tileTop + 14;
+    return onTileX && onTileY;
+  }
+
+  checkPlayerLetterLanding() {
+    if (!this.hangmanActive || this.hangmanWon || !this.player?.body) return;
+
+    const body = this.player.body;
+    const isAirborne = !body.blocked.down;
+    const justLanded = body.blocked.down && this.playerWasAirborne;
+    this.playerWasAirborne = isAirborne;
+
+    if (!justLanded) return;
+
+    const tileUnderPlayer = this.getTileUnderPlayer();
+    if (!tileUnderPlayer || tileUnderPlayer === this.lastLandingTile) return;
+
+    this.lastLandingTile = tileUnderPlayer;
+    this.activateLetterFromLanding(tileUnderPlayer);
+  }
+
+  activateLetterFromLanding(tilePlatform) {
+    if (!tilePlatform?.active || !tilePlatform.isLanded || !this.hasReleasedAlphabet || this.hangmanWon) return;
+
+    const letterAdded = this.addLetterToPhraseGuess(tilePlatform.letterChar);
+    if (!letterAdded) return;
+
+    if (!this.isPhraseGuessComplete()) return;
+
+    this.time.delayedCall(80, () => this.evaluatePhraseAfterAllLettersTried());
+  }
+
+  updateHangman() {
+    if (!this.hangmanActive || !this.flowerPosition) return;
+
+    const distanceToFlower = Phaser.Math.Distance.Between(
+      this.player.x,
+      this.player.y,
+      this.flowerPosition.x,
+      this.flowerPosition.y,
     );
+    const nearFlower = distanceToFlower < FLOWER_BUTTON_DISTANCE;
+
+    if (this.actionKey && Phaser.Input.Keyboard.JustDown(this.actionKey) && nearFlower && !this.hangmanWon) {
+      if (this.hasReleasedAlphabet) {
+        if (this.isPostAlphabetMemoryAvailable()) {
+          this.flowerRelaxRevealActive = false;
+          this.flowerMemoryRevealActive = true;
+        } else {
+          this.flowerRelaxRevealActive = true;
+        }
+        return;
+      }
+
+      if (this.canInteractWithFlower()) {
+        this.releaseAlphabetFromFlower();
+      }
+    }
+
+    if (!this.player?.body?.blocked.down) {
+      this.lastLandingTile = null;
+    }
+    this.checkPlayerLetterLanding();
+  }
+
+  cleanupHangman() {
+    this.hangmanDisplayText?.destroy();
+    this.hangmanDisplayText = null;
+    if (this.letterTiles) {
+      this.letterTiles.children.each((tilePlatform) => {
+        tilePlatform.tileLabel?.destroy();
+        return true;
+      });
+      this.letterTiles.clear(true, true);
+      this.letterTiles = null;
+    }
+    this.hasReleasedAlphabet = false;
+    this.flowerReadyTime = 0;
+    this.alphabetReleasedTime = 0;
+    this.showingFlowerProximityMessage = false;
+    this.hasSeenFlowerReadyWhisper = false;
+    this.flowerRelaxRevealActive = false;
+    this.flowerMemoryRevealActive = false;
+    this.letterTileColliderAdded = false;
+    this.playerWasAirborne = false;
+    this.lastLandingTile = null;
+    this.phraseGuessSlots = [];
+    this.isEvaluatingPhrase = false;
+    this.hangmanActive = false;
   }
 
   spawnDocumentPickup() {
