@@ -48,12 +48,12 @@ Start or restart the game for them as needed for them to test it.
 
 5. Once your human is happy with the changes
 
+Ask them how they would like to describe this turn in a short cryptic/poetic sentence, to be used as commit message.
 Stop the game, then commit all edits in the repo and push:
 ```
 git -C company-of-ourselves commit -am "[modify] <message>"
 git -C company-of-ourselves push
 ```
-(for `<message>`, write a very cryptic/poetic message that's barely related to the changes, in line with the tone of the game. dont give away clues as to what the player must do to complete the turn)
 
 Then tell them:
 "The game URL https://arnaudh.github.io/company-of-ourselves will have your changes within ~30 seconds (hard refresh with Cmd+Shift+R)."
