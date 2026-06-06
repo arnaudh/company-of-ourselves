@@ -40,7 +40,7 @@ git -C company-of-ourselves push
 "You can test play the changes on your computer, and iterate on the changes as much as you want."
 "I can start and stop the game for you."
 "Once you are happy with the changes, let me know and I will submit them, and it will be the other human's turn to play."
-"Just make sure there is an action to end the turn."
+"Just make sure there is a way for the player to end the turn — and that it actually calls `endTurn()` in game.js."
 "What changes do you want to make?"
 
 Guide them if they need any help.
