@@ -64,6 +64,14 @@ class GameRecorder {
     this._downloadBlob(recording.blob, recording.filename);
   }
 
+  async stopAndGetBlobAfterTail() {
+    if (this.recorder?.state === "recording") {
+      this.recorder.requestData();
+      await new Promise((resolve) => setTimeout(resolve, 200));
+    }
+    return this.stopAndGetBlob();
+  }
+
   async stopAndGetBlob() {
     if (!this.recorder || this.recorder.state === "inactive") {
       throw new Error("Recording is not active.");

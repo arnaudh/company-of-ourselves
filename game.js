@@ -2,60 +2,108 @@ const SOURCE_SCREENSHOT_WIDTH = 601;
 const SOURCE_SCREENSHOT_HEIGHT = 399;
 const GAME_SCALE_FACTOR = 1.3;
 
-const GAME_WIDTH = Math.round(SOURCE_SCREENSHOT_WIDTH * GAME_SCALE_FACTOR);
-const GAME_HEIGHT = Math.round(SOURCE_SCREENSHOT_HEIGHT * GAME_SCALE_FACTOR);
+const BASE_GAME_WIDTH = Math.round(SOURCE_SCREENSHOT_WIDTH * GAME_SCALE_FACTOR);
+const BASE_GAME_HEIGHT = Math.round(SOURCE_SCREENSHOT_HEIGHT * GAME_SCALE_FACTOR);
 
 const BASE_PLAY_AREA_Y_RATIO = 0.515625;
 const BASE_PLAY_AREA_HEIGHT_RATIO = 0.234375;
-const PLAY_AREA_WIDTH = Math.round(GAME_WIDTH * 0.9);
-const PLAY_AREA_HEIGHT = Math.round(GAME_HEIGHT * BASE_PLAY_AREA_HEIGHT_RATIO * 1.5);
-const PLAY_AREA = {
-  x: Math.round((GAME_WIDTH - PLAY_AREA_WIDTH) / 2),
-  y: Math.round(GAME_HEIGHT * (BASE_PLAY_AREA_Y_RATIO + BASE_PLAY_AREA_HEIGHT_RATIO * 0.2)),
-  width: PLAY_AREA_WIDTH,
-  height: PLAY_AREA_HEIGHT,
+const BASE_PLAY_AREA_WIDTH = Math.round(BASE_GAME_WIDTH * 0.9);
+const BASE_PLAY_AREA_HEIGHT = Math.round(BASE_GAME_HEIGHT * BASE_PLAY_AREA_HEIGHT_RATIO * 1.5);
+const BASE_PLAY_AREA = {
+  x: Math.round((BASE_GAME_WIDTH - BASE_PLAY_AREA_WIDTH) / 2),
+  y: Math.round(BASE_GAME_HEIGHT * (BASE_PLAY_AREA_Y_RATIO + BASE_PLAY_AREA_HEIGHT_RATIO * 0.2)),
+  width: BASE_PLAY_AREA_WIDTH,
+  height: BASE_PLAY_AREA_HEIGHT,
 };
+
+const WORLD_EXPAND_SIDES_RATIO = 0.3;
+const SKY_ABOVE_CEILING_HEIGHT_RATIO = 0.35;
+const SIDE_EXPANSION = Math.round(BASE_PLAY_AREA.width * WORLD_EXPAND_SIDES_RATIO);
+const SKY_ABOVE_HEIGHT = Math.round(BASE_PLAY_AREA.y * SKY_ABOVE_CEILING_HEIGHT_RATIO);
+const WORLD_OFFSET_X = SIDE_EXPANSION;
+const WORLD_OFFSET_Y = SKY_ABOVE_HEIGHT;
+
+const GAME_WIDTH = BASE_GAME_WIDTH + SIDE_EXPANSION * 2;
+const GAME_HEIGHT = BASE_GAME_HEIGHT + SKY_ABOVE_HEIGHT;
+
+const BASE_FRAME = {
+  x: WORLD_OFFSET_X,
+  y: WORLD_OFFSET_Y,
+  width: BASE_GAME_WIDTH,
+  height: BASE_GAME_HEIGHT,
+};
+
+const PAGE_BG_COLOR = 0x3a2f1f;
+
+const PLAY_AREA = {
+  x: WORLD_OFFSET_X + BASE_PLAY_AREA.x,
+  y: WORLD_OFFSET_Y + BASE_PLAY_AREA.y,
+  width: BASE_PLAY_AREA.width,
+  height: BASE_PLAY_AREA.height,
+};
+
+const EXPANDED_PLAY_AREA = {
+  x: WORLD_OFFSET_X + BASE_PLAY_AREA.x - SIDE_EXPANSION,
+  y: PLAY_AREA.y,
+  width: BASE_PLAY_AREA.width + SIDE_EXPANSION * 2,
+  height: PLAY_AREA.height,
+};
+
+const toLegacyCoords = (x, y) => ({
+  x: x - WORLD_OFFSET_X,
+  y: y - WORLD_OFFSET_Y,
+});
+
+const toWorldCoords = (x, y) => ({
+  x: x + WORLD_OFFSET_X,
+  y: y + WORLD_OFFSET_Y,
+});
 
 const GAME_ID = "company-of-ourselves";
 const INITIAL_PLAYER = "pulsar";
-const PULSAR_SHADOW_MEET_DISTANCE = 34;
-const PULSAR_INTRO_LINE_DURATION_MS = 4600;
-const PULSAR_DOCUMENT_SPAWN_DELAY_MS = 3000;
-const DOCUMENT_PICKUP_DISTANCE = 32;
-const HANGMAN_WORDS = ["THE", "HANKERS"];
-const HANGMAN_SECRET = HANGMAN_WORDS.join(" ");
-const HANGMAN_PHRASE_SLOTS = [...HANGMAN_WORDS[0], " ", ...HANGMAN_WORDS[1]];
-const FLOWER_BUTTON_DISTANCE = 36;
-const LETTER_TILE_SIZE = 32;
-const LETTER_TILE_GAP = 22;
-const LETTER_TILE_ROW_GAP = 42;
-const LETTER_TILE_COLS = 13;
-const LETTER_TILE_FONT_SIZE = 20;
-const FALLING_LETTER_GRAVITY = 900;
-const HANGMAN_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-const HANGMAN_LETTER_COUNT = HANGMAN_ALPHABET.length;
-const STORY_TEXT_SCALE = 0.5;
-const STORY_TEXT_WRAP_VISUAL_WIDTH = PLAY_AREA.width;
-const STORY_TEXT_DEFAULT_COLOR = "#ffd36e";
-const STORY_TEXT_DEFAULT_AUTO_HIDE_MS = 1800;
-const fetchNoStore = (resource, options = {}) => fetch(resource, { ...options, cache: "no-store" });
-const PULSAR_INTRO_LINES = [
-  "It looks like it's just ourselves here.",
-  "I mean, I _was_ here, but now... _you_ are here.",
-  "I have instructions that need to be passed along.",
-  "It all seems cryptic to me, but maybe you will figure it out.",
-  "And think of a way out of here for both of us.",
-  "If not, then at least we will have\nthe company of ourselves...",
+const FLOWER_PROXIMITY_X = 16;
+const FLOWER_PROXIMITY_Y = 22;
+const SHADOW_MEET_DISTANCE = 42;
+const SHADOW_JOKE_DISPLAY_MS = 10000;
+const FLOWER_TEXT_SCALE = 0.5;
+const FLOWER_TEXT_WRAP_VISUAL_WIDTH = Math.round(BASE_PLAY_AREA.width * 1.12);
+const FLOWER_TEXT_COLOR = "#ffd36e";
+const LEGACY_TEXT_X = WORLD_OFFSET_X + Math.round(BASE_GAME_WIDTH / 2);
+const LEGACY_TEXT_Y = WORLD_OFFSET_Y + 80;
+const TURN_4_FLOWER_LINES = [
+  "when you are feeling low, there are usually two ways out",
+  "either you dig into what's blocking you",
+  "or a friend lifts your spirits",
+  "sometimes you need both",
 ];
-const FLOWER_WHISPER_LINE = "This flower is trying to tell me something";
-const FLOWER_MOVEMENT_LINE = "this flower does not like movement it seems";
-const FLOWER_RELAX_LINE = "Maybe i should just sit relax and think for a moment";
-const FLOWER_BORED_LINE =
-  "I am getting bored watching this flower , maybe i should start writing a Letter";
-const FLOWER_MEMORY_LINE =
-  "Feels good to take time sometimes, my memory starts coming back : We were a team before !";
-const FLOWER_BORED_DELAY_MS = 2 * 60 * 1000;
-const FLOWER_MEMORY_DELAY_MS = 3 * 60 * 1000;
+const SHADOW_JOKES_BY_RUN = {
+  1: "a Freudian slip is when you say one thing and mean your mother",
+  2: "What's the difference between a psychologist and a magician? A magician pulls rabbits out of hats, whereas a psychologist pulls habits out of rats.",
+  3: 'Receptionist to psychologist: "Doctor, there\'s a patient here who thinks he\'s invisible." "Tell him I can\'t see him right now."',
+};
+const fetchNoStore = (resource, options = {}) => fetch(resource, { ...options, cache: "no-store" });
+const CHARACTER_SCALE = 1.4;
+const CHARACTER_BODY_WIDTH_RATIO = 0.55;
+const CHARACTER_BODY_HEIGHT_RATIO = 0.82;
+const CHARACTER_BODY_OFFSET_X_RATIO = 0.2;
+const CHARACTER_BODY_OFFSET_Y_RATIO = 0.18;
+const CHARACTER_STAND_PLATFORM_HEIGHT = 6;
+const CHARACTER_STAND_PLATFORM_LANDING_MARGIN = 10;
+const CEILING_DIG_RADIUS = 20;
+const CEILING_TILE_SIZE = 16;
+const CEILING_TOP_LANDING_TOLERANCE = 14;
+const CEILING_FALL_LANDING_EXTRA = 10;
+const CEILING_BACKING_COLOR = 0x1f1810;
+const MAIN_GROUND_HEIGHT = 6;
+const RAVINE_FLOOR_COLLIDER_HEIGHT = 24;
+const CEILING_DIGGING_RUN_NUMBER = 4;
+const TURN_END_SETTLE_TIMEOUT_MS = 8000;
+const TURN_END_MIN_RECORD_MS = 500;
+const TURN_END_SETTLED_FRAME_COUNT = 4;
+const PLAYER_STOP_VELOCITY_THRESHOLD = 12;
+const SKY_BACKGROUND_DEPTH = 0.5;
+const GRASS_DEPTH = 3;
+
 const CHARACTER_STYLES = {
   pulsar: {
     textureKey: "pulsar",
@@ -77,7 +125,7 @@ class PreloadScene extends Phaser.Scene {
   }
 
   preload() {
-    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, 0x3a2f1f);
+    this.add.rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAGE_BG_COLOR);
 
     const loadingText = this.add
       .text(GAME_WIDTH / 2, GAME_HEIGHT / 2 - 70, "Loading...", {
@@ -134,10 +182,13 @@ class MainScene extends Phaser.Scene {
     this.cursors = null;
     this.storyText = null;
     this.storyHideTimer = null;
-    this.storyEventsFired = new Set();
+    this.storyTextSpeaker = null;
     this.flowerPosition = null;
-    this.wasNearFlower = false;
-    this.hasReachedFlower = false;
+    this.flowerLineIndex = 0;
+    this.hasCompletedFlowerOnce = false;
+    this.wasOnFlower = false;
+    this.hasLeftFlowerSinceLastLine = true;
+    this.shadowJokeLockUntil = 0;
     this.speed = 170;
     this.jumpSpeed = 430;
     this.ground = null;
@@ -147,6 +198,7 @@ class MainScene extends Phaser.Scene {
     this.musicStarted = false;
     this.recorder = null;
     this.captureDownloadKey = null;
+    this.finishShadowsKey = null;
     this.captureDownloadInProgress = false;
     this.hasDownloadedCapture = false;
     this.actionHistory = [];
@@ -155,95 +207,132 @@ class MainScene extends Phaser.Scene {
     this.playerTurn = INITIAL_PLAYER;
     this.loadedRunCountForGame = 0;
     this.loadedRunMaxNumberForGame = 0;
-    this.hasTriggeredPulsarShadowSequence = false;
-    this.storySequenceLocked = false;
-    this.storySequenceTimer = null;
-    this.documentPosition = null;
-    this.documentPickup = null;
-    this.hasSpawnedDocument = false;
-    this.hasReachedDocument = false;
     this.movementLocked = false;
     this.hasTriggeredTurnEndSequence = false;
-    this.actionKey = null;
-    this.hangmanActive = false;
-    this.phraseGuessSlots = [];
-    this.hangmanWon = false;
-    this.isEvaluatingPhrase = false;
-    this.hangmanDisplayText = null;
+    this.awaitingCaptureAfterStop = false;
+    this.turnEndRequestedAt = 0;
+    this.turnEndSettledFrameCount = 0;
     this.flowerGraphics = null;
-    this.hasReleasedAlphabet = false;
-    this.letterTiles = null;
-    this.flowerReadyTime = 0;
-    this.alphabetReleasedTime = 0;
-    this.showingFlowerProximityMessage = false;
-    this.hasSeenFlowerReadyWhisper = false;
-    this.flowerRelaxRevealActive = false;
-    this.flowerMemoryRevealActive = false;
-    this.playerWasAirborne = false;
-    this.lastLandingTile = null;
+    this.characterStandPlatforms = null;
+    this.playerStandPlatform = null;
+    this.characterStandColliderAdded = false;
+    this.ceilingRenderTexture = null;
+    this.ceilingBacking = null;
+    this.digBrush = null;
+    this.ceilingSolidGrid = null;
+    this.ceilingDigMarks = [];
+    this.ceilingCols = 0;
+    this.ceilingRows = 0;
+    this.ceilingOriginY = 0;
+    this.playerSupportedByCeiling = false;
+    this.playerSupportedByRavineFloor = false;
+    this.ceilingSupportSurfaceY = null;
+    this.playArea = null;
+    this.originalPlayArea = null;
+    this.hasExpandedWorld = false;
+    this.wallBackground = null;
+    this.skyBackground = null;
+    this.skyBackgroundMask = null;
+    this.grassLines = [];
+    this.leftRavineFloor = null;
+    this.rightRavineFloor = null;
+    this.leftRavineFloorCollider = null;
+    this.rightRavineFloorCollider = null;
+    this.ravineFloorCollidersAdded = false;
   }
 
   create() {
-    this.add.image(GAME_WIDTH / 2, GAME_HEIGHT / 2, "wall").setDisplaySize(GAME_WIDTH, GAME_HEIGHT);
+    this.playArea = { ...PLAY_AREA };
+    this.originalPlayArea = { x: PLAY_AREA.x, width: PLAY_AREA.width };
+
+    this.pageBackground = this.add
+      .rectangle(GAME_WIDTH / 2, GAME_HEIGHT / 2, GAME_WIDTH, GAME_HEIGHT, PAGE_BG_COLOR)
+      .setDepth(-2);
+
+    this.wallBackground = this.add
+      .image(BASE_FRAME.x + BASE_FRAME.width / 2, BASE_FRAME.y + BASE_FRAME.height / 2, "wall")
+      .setDisplaySize(BASE_FRAME.width, BASE_FRAME.height);
+
+    this.physics.world.setBounds(0, 0, GAME_WIDTH, GAME_HEIGHT);
+
+    this.createDiggableCeiling();
 
     this.storyText = this.add
       .text(
-        GAME_WIDTH / 2,
-        80,
+        LEGACY_TEXT_X,
+        LEGACY_TEXT_Y,
         "",
         {
           fontFamily: "Georgia, Times New Roman, serif",
           fontStyle: "italic",
           fontSize: "52px",
-          color: "#ffffff",
+          color: FLOWER_TEXT_COLOR,
           align: "center",
           lineSpacing: 10,
           stroke: "#6a5637",
           strokeThickness: 8,
           wordWrap: {
-            width: STORY_TEXT_WRAP_VISUAL_WIDTH / STORY_TEXT_SCALE,
+            width: FLOWER_TEXT_WRAP_VISUAL_WIDTH / FLOWER_TEXT_SCALE,
             useAdvancedWrap: true,
           },
         },
       )
       .setOrigin(0.5, 0)
-      .setScale(STORY_TEXT_SCALE);
+      .setScale(FLOWER_TEXT_SCALE)
+      .setDepth(10);
     this.storyText.setVisible(false);
 
-    const sky = this.add.image(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height / 2, "sky");
-    const skyScale = Math.max(PLAY_AREA.width / sky.width, PLAY_AREA.height / sky.height);
-    sky.setScale(skyScale);
+    this.syncSkyBackground();
 
-    // Keep sky image aspect ratio while clipping overflow to arena.
-    const skyMaskShape = this.make.graphics({ x: 0, y: 0, add: false });
-    skyMaskShape.fillRect(PLAY_AREA.x, PLAY_AREA.y, PLAY_AREA.width, PLAY_AREA.height);
-    sky.setMask(skyMaskShape.createGeometryMask());
-
-    this.add.rectangle(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height - 2, PLAY_AREA.width, 4, 0x3cae3f);
-    this.add.rectangle(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + PLAY_AREA.height - 6, PLAY_AREA.width, 2, 0x2f8f34, 0.5);
+    this.grassLines = [
+      this.add
+        .rectangle(
+          this.playArea.x + this.playArea.width / 2,
+          this.playArea.y + this.playArea.height - 2,
+          this.playArea.width,
+          4,
+          0x3cae3f,
+        )
+        .setDepth(GRASS_DEPTH),
+      this.add
+        .rectangle(
+          this.playArea.x + this.playArea.width / 2,
+          this.playArea.y + this.playArea.height - 6,
+          this.playArea.width,
+          2,
+          0x2f8f34,
+          0.5,
+        )
+        .setDepth(GRASS_DEPTH),
+    ];
 
     const flowerData = this.drawLeftFlower();
     this.flowerPosition = flowerData.position;
     this.flowerGraphics = flowerData.graphics;
 
     this.ground = this.add.rectangle(
-      PLAY_AREA.x + PLAY_AREA.width / 2,
-      PLAY_AREA.y + PLAY_AREA.height - 3,
-      PLAY_AREA.width,
-      6,
+      this.playArea.x + this.playArea.width / 2,
+      this.playArea.y + this.playArea.height - MAIN_GROUND_HEIGHT / 2,
+      this.playArea.width,
+      MAIN_GROUND_HEIGHT,
       0x000000,
       0,
     );
     this.physics.add.existing(this.ground, true);
+    this.ground.body.updateFromGameObject();
+    this.characterStandPlatforms = this.physics.add.staticGroup();
 
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.actionKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.A);
     this.captureDownloadKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.X);
+    this.finishShadowsKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.Z);
     this.initRecording();
+    this.events.on("preupdate", this.preUpdateCharacters, this);
+    this.events.on("postupdate", this.resolvePlayerCeilingCollision, this);
+    this.events.on("postupdate", this.tryCompleteTurnCapture, this);
     this.loadPastRunReplays().finally(() => {
       this.createPlayer();
+      this.setupCharacterStandColliders();
       this.resetActionRecording();
-      this.initHangmanState();
     });
 
     // Some browsers block autoplay until first user interaction.
@@ -260,6 +349,8 @@ class MainScene extends Phaser.Scene {
     this.events.on("destroy", this.cleanupRecording, this);
     this.events.on("shutdown", this.cleanupShadowReplays, this);
     this.events.on("destroy", this.cleanupShadowReplays, this);
+    this.events.on("shutdown", this.cleanupCeiling, this);
+    this.events.on("destroy", this.cleanupCeiling, this);
 
     if (typeof window.hideBootLoader === "function") {
       window.hideBootLoader();
@@ -267,8 +358,8 @@ class MainScene extends Phaser.Scene {
   }
 
   drawLeftFlower() {
-    const x = PLAY_AREA.x + 18;
-    const y = PLAY_AREA.y + PLAY_AREA.height - 18;
+    const x = this.playArea.x + 18;
+    const y = this.playArea.y + this.playArea.height - 8;
 
     const flower = this.add.graphics();
     flower.fillStyle(0x3cae3f, 1);
@@ -285,7 +376,663 @@ class MainScene extends Phaser.Scene {
     return { position: { x, y: y - 20 }, graphics: flower };
   }
 
+  getSkyBackgroundBounds() {
+    const pa = this.playArea;
+    if (this.hasExpandedWorld) {
+      return { x: pa.x, y: 0, width: pa.width, height: pa.y + pa.height };
+    }
+    return { x: pa.x, y: pa.y, width: pa.width, height: pa.height };
+  }
+
+  syncSkyBackground() {
+    const bounds = this.getSkyBackgroundBounds();
+
+    if (!this.skyBackground) {
+      this.skyBackground = this.add.tileSprite(bounds.x, bounds.y, bounds.width, bounds.height, "sky");
+      this.skyBackground.setOrigin(0, 0);
+      this.skyBackground.setDepth(SKY_BACKGROUND_DEPTH);
+    } else {
+      this.skyBackground.setPosition(bounds.x, bounds.y);
+      this.skyBackground.setSize(bounds.width, bounds.height);
+    }
+
+    if (this.hasExpandedWorld) {
+      this.skyBackground.clearMask(true);
+      this.skyBackgroundMask?.destroy();
+      this.skyBackgroundMask = null;
+      return;
+    }
+
+    if (this.skyBackgroundMask) return;
+
+    const pa = this.playArea;
+    const maskShape = this.make.graphics({ x: 0, y: 0, add: false });
+    maskShape.fillRect(pa.x, pa.y, pa.width, pa.height);
+    this.skyBackgroundMask = maskShape.createGeometryMask();
+    this.skyBackground.setMask(this.skyBackgroundMask);
+  }
+
+  createWallFill(x, y, width, height, depth = 1) {
+    const wall = this.add.image(x + width / 2, y + height / 2, "wall");
+    wall.setDisplaySize(width, height);
+    wall.setDepth(depth);
+    return wall;
+  }
+
+  getCeilingOriginY() {
+    return this.ceilingOriginY || 0;
+  }
+
+  getCeilingX() {
+    return this.playArea.x;
+  }
+
+  getCeilingWidth() {
+    return this.playArea.width;
+  }
+
+  getCeilingHeight() {
+    return this.playArea.y - this.getCeilingOriginY();
+  }
+
+  createDiggableCeiling() {
+    this.ceilingOriginY = WORLD_OFFSET_Y;
+
+    const ceilingX = this.getCeilingX();
+    const ceilingY = this.getCeilingOriginY();
+    const ceilingWidth = this.getCeilingWidth();
+    const ceilingHeight = this.getCeilingHeight();
+
+    this.ceilingBacking = this.add
+      .rectangle(ceilingX + ceilingWidth / 2, ceilingY + ceilingHeight / 2, ceilingWidth, ceilingHeight, CEILING_BACKING_COLOR)
+      .setDepth(1);
+
+    this.ceilingRenderTexture = this.add
+      .renderTexture(ceilingX, ceilingY, ceilingWidth, ceilingHeight)
+      .setOrigin(0, 0)
+      .setDepth(2);
+
+    this.stampWallOntoCeilingRenderTexture();
+
+    this.digBrush = this.make.graphics({ x: 0, y: 0, add: false });
+    this.digBrush.fillStyle(0xffffff, 1);
+    this.digBrush.fillCircle(0, 0, CEILING_DIG_RADIUS);
+
+    this.ceilingCols = Math.ceil(ceilingWidth / CEILING_TILE_SIZE);
+    this.ceilingRows = Math.ceil((this.playArea.y - this.getCeilingOriginY()) / CEILING_TILE_SIZE);
+    this.ceilingSolidGrid = Array.from({ length: this.ceilingRows }, () =>
+      Array.from({ length: this.ceilingCols }, () => true),
+    );
+  }
+
+  stampWallOntoCeilingRenderTexture() {
+    if (!this.ceilingRenderTexture) return;
+
+    const ceilingX = this.getCeilingX();
+    const ceilingY = this.getCeilingOriginY();
+    const wallStamp = this.make.image({
+      key: "wall",
+      x: BASE_FRAME.x + BASE_FRAME.width / 2 - ceilingX,
+      y: BASE_FRAME.y + BASE_FRAME.height / 2 - ceilingY,
+      add: false,
+    });
+    wallStamp.setDisplaySize(BASE_FRAME.width, BASE_FRAME.height);
+    this.ceilingRenderTexture.draw(wallStamp);
+    wallStamp.destroy();
+  }
+
+  eraseCeilingVisualAt(worldX, worldY) {
+    if (!this.ceilingRenderTexture || !this.digBrush) return;
+    const localX = worldX - this.getCeilingX();
+    const localY = worldY - this.getCeilingOriginY();
+    this.ceilingRenderTexture.erase(this.digBrush, localX, localY);
+  }
+
+  recordCeilingDigMark(worldX, worldY) {
+    const mergeDistance = CEILING_DIG_RADIUS * 0.4;
+    for (const mark of this.ceilingDigMarks) {
+      if (Phaser.Math.Distance.Between(mark.x, mark.y, worldX, worldY) < mergeDistance) {
+        return;
+      }
+    }
+    this.ceilingDigMarks.push({ x: worldX, y: worldY });
+  }
+
+  reapplyCeilingDigMarks() {
+    if (!this.ceilingRenderTexture || !this.digBrush) return;
+
+    if (this.ceilingDigMarks.length > 0) {
+      for (const mark of this.ceilingDigMarks) {
+        this.eraseCeilingVisualAt(mark.x, mark.y);
+      }
+      return;
+    }
+
+    this.reapplyCeilingDigsFromGrid();
+  }
+
+  reapplyCeilingDigsFromGrid() {
+    if (!this.ceilingSolidGrid) return;
+
+    for (let row = 0; row < this.ceilingRows; row += 1) {
+      for (let col = 0; col < this.ceilingCols; col += 1) {
+        if (this.ceilingSolidGrid[row][col]) continue;
+        const worldX = this.getCeilingX() + col * CEILING_TILE_SIZE + CEILING_TILE_SIZE / 2;
+        const worldY = this.getCeilingOriginY() + row * CEILING_TILE_SIZE + CEILING_TILE_SIZE / 2;
+        this.eraseCeilingVisualAt(worldX, worldY);
+      }
+    }
+  }
+
+  rebuildCeilingVisuals(useSkyBacking) {
+    const ceilingX = this.getCeilingX();
+    const ceilingY = this.getCeilingOriginY();
+    const ceilingWidth = this.getCeilingWidth();
+    const ceilingHeight = this.getCeilingHeight();
+
+    this.ceilingBacking?.destroy();
+    this.ceilingRenderTexture?.destroy();
+
+    if (useSkyBacking) {
+      this.ceilingBacking = this.add
+        .rectangle(ceilingX + ceilingWidth / 2, ceilingY + ceilingHeight / 2, ceilingWidth, ceilingHeight, 0x000000, 0)
+        .setDepth(1);
+    } else {
+      this.ceilingBacking = this.add
+        .rectangle(ceilingX + ceilingWidth / 2, ceilingY + ceilingHeight / 2, ceilingWidth, ceilingHeight, CEILING_BACKING_COLOR)
+        .setDepth(1);
+    }
+
+    this.ceilingRenderTexture = this.add
+      .renderTexture(ceilingX, ceilingY, ceilingWidth, ceilingHeight)
+      .setOrigin(0, 0)
+      .setDepth(2);
+
+    this.stampWallOntoCeilingRenderTexture();
+    this.reapplyCeilingDigMarks();
+  }
+
+  expandCeilingGrid(sideColCount) {
+    const oldGrid = this.ceilingSolidGrid;
+    const oldCols = this.ceilingCols;
+    const rows = this.ceilingRows;
+    const newCols = oldCols + sideColCount * 2;
+    const newGrid = Array.from({ length: rows }, () => Array.from({ length: newCols }, () => false));
+
+    for (let row = 0; row < rows; row += 1) {
+      for (let col = 0; col < oldCols; col += 1) {
+        newGrid[row][sideColCount + col] = oldGrid[row][col];
+      }
+    }
+
+    this.ceilingSolidGrid = newGrid;
+    this.ceilingCols = newCols;
+  }
+
+  createRavineSide(isLeft) {
+    const original = this.originalPlayArea;
+    const pa = this.playArea;
+    let x;
+    let width;
+
+    if (isLeft) {
+      x = pa.x;
+      width = original.x - pa.x;
+    } else {
+      x = original.x + original.width;
+      width = pa.x + pa.width - x;
+    }
+
+    if (width <= 0) return null;
+
+    const ravineFloor = this.createWallFill(x, pa.y, width, pa.height, 0.6);
+    const ravineFloorCollider = this.add.rectangle(
+      x + width / 2,
+      pa.y + RAVINE_FLOOR_COLLIDER_HEIGHT / 2,
+      width,
+      RAVINE_FLOOR_COLLIDER_HEIGHT,
+      0x000000,
+      0,
+    );
+    this.physics.add.existing(ravineFloorCollider, true);
+    ravineFloorCollider.body.updateFromGameObject();
+    return { ravineFloor, ravineFloorCollider };
+  }
+
+  setupRavineFloorColliders() {
+    if (!this.player?.body || this.ravineFloorCollidersAdded) return;
+
+    if (this.leftRavineFloorCollider) {
+      this.physics.add.collider(this.player, this.leftRavineFloorCollider);
+    }
+    if (this.rightRavineFloorCollider) {
+      this.physics.add.collider(this.player, this.rightRavineFloorCollider);
+    }
+    this.ravineFloorCollidersAdded = true;
+  }
+
+  resizeExpandedPlayVisuals() {
+    const pa = this.playArea;
+    const original = this.originalPlayArea;
+
+    this.syncSkyBackground();
+
+    if (this.grassLines.length >= 2) {
+      this.grassLines[0].setPosition(original.x + original.width / 2, pa.y + pa.height - 2);
+      this.grassLines[0].setSize(original.width, 4);
+      this.grassLines[1].setPosition(original.x + original.width / 2, pa.y + pa.height - 6);
+      this.grassLines[1].setSize(original.width, 2);
+    }
+
+    this.syncMainGroundCollider();
+  }
+
+  syncMainGroundCollider() {
+    const original = this.originalPlayArea;
+    const pa = this.playArea;
+    this.ground.setPosition(original.x + original.width / 2, pa.y + pa.height - MAIN_GROUND_HEIGHT / 2);
+    this.ground.setSize(original.width, MAIN_GROUND_HEIGHT);
+    this.ground.body?.updateFromGameObject();
+  }
+
+  expandWorld(options = {}) {
+    const { ceilingState = null } = options;
+    if (this.hasExpandedWorld) return;
+    this.hasExpandedWorld = true;
+
+    const sideColCount = Math.ceil(SIDE_EXPANSION / CEILING_TILE_SIZE);
+
+    this.playArea.x = EXPANDED_PLAY_AREA.x;
+    this.playArea.width = EXPANDED_PLAY_AREA.width;
+
+    this.expandCeilingGrid(sideColCount);
+    if (ceilingState) {
+      this.applyCeilingStateFromSave(ceilingState);
+    }
+    this.rebuildCeilingVisuals(true);
+
+    const leftRavine = this.createRavineSide(true);
+    if (leftRavine) {
+      this.leftRavineFloor = leftRavine.ravineFloor;
+      this.leftRavineFloorCollider = leftRavine.ravineFloorCollider;
+    }
+
+    const rightRavine = this.createRavineSide(false);
+    if (rightRavine) {
+      this.rightRavineFloor = rightRavine.ravineFloor;
+      this.rightRavineFloorCollider = rightRavine.ravineFloorCollider;
+    }
+
+    this.resizeExpandedPlayVisuals();
+  }
+
+  serializeCeilingState() {
+    if (!this.ceilingSolidGrid) return null;
+
+    const dug = [];
+    for (let row = 0; row < this.ceilingRows; row += 1) {
+      for (let col = 0; col < this.ceilingCols; col += 1) {
+        if (!this.ceilingSolidGrid[row][col]) {
+          dug.push([col, row]);
+        }
+      }
+    }
+
+    return {
+      cols: this.ceilingCols,
+      rows: this.ceilingRows,
+      dug,
+      dig_marks: this.ceilingDigMarks.map((mark) => [mark.x, mark.y]),
+    };
+  }
+
+  applyCeilingStateFromSave(ceilingState) {
+    if (!ceilingState || !this.ceilingSolidGrid) return;
+
+    if (Array.isArray(ceilingState.dig_marks)) {
+      this.ceilingDigMarks = ceilingState.dig_marks
+        .filter((mark) => Array.isArray(mark) && mark.length >= 2)
+        .map(([x, y]) => ({ x, y }));
+    }
+
+    if (!Array.isArray(ceilingState.dug)) return;
+
+    for (const cell of ceilingState.dug) {
+      if (!Array.isArray(cell) || cell.length < 2) continue;
+      const col = cell[0];
+      const row = cell[1];
+      if (row < 0 || col < 0 || row >= this.ceilingRows || col >= this.ceilingCols) continue;
+      this.ceilingSolidGrid[row][col] = false;
+    }
+  }
+
+  getLatestPersistedWorldRun(runsForGame) {
+    if (!Array.isArray(runsForGame) || runsForGame.length === 0) return null;
+
+    let latestRun = null;
+    for (const runData of runsForGame) {
+      if (runData?.runFileData?.world_expanded !== true) continue;
+      if (!latestRun) {
+        latestRun = runData;
+        continue;
+      }
+
+      const latestRunNumber = Number.isInteger(latestRun.runNumber) ? latestRun.runNumber : -1;
+      const candidateRunNumber = Number.isInteger(runData.runNumber) ? runData.runNumber : -1;
+      if (candidateRunNumber > latestRunNumber) {
+        latestRun = runData;
+        continue;
+      }
+
+      if (candidateRunNumber === latestRunNumber && runData.index > latestRun.index) {
+        latestRun = runData;
+      }
+    }
+
+    return latestRun;
+  }
+
+  applyPersistedWorldState(pastRunsData) {
+    const runsForGame = pastRunsData.filter((runData) => runData.runGame === GAME_ID);
+    const worldRun = this.getLatestPersistedWorldRun(runsForGame);
+    if (!worldRun?.runFileData?.world_expanded) return;
+
+    this.expandWorld({ ceilingState: worldRun.runFileData.ceiling_state ?? null });
+  }
+
+  checkWorldExpansion() {
+    if (!this.isCeilingDiggingEnabled()) return;
+    if (this.hasExpandedWorld || !this.player?.active) return;
+    const head = this.getCharacterHeadBounds(this.player);
+    if (head.top < this.getCeilingOriginY()) {
+      this.expandWorld();
+      this.endTurn();
+    }
+  }
+
+  isCeilingCellSolid(col, row) {
+    if (!this.ceilingSolidGrid) return false;
+    if (row < 0 || col < 0 || row >= this.ceilingRows || col >= this.ceilingCols) return false;
+    return this.ceilingSolidGrid[row][col];
+  }
+
+  getCeilingCellWorldRect(col, row) {
+    const originY = this.getCeilingOriginY();
+    return {
+      left: this.getCeilingX() + col * CEILING_TILE_SIZE,
+      top: originY + row * CEILING_TILE_SIZE,
+      right: this.getCeilingX() + (col + 1) * CEILING_TILE_SIZE,
+      bottom: originY + (row + 1) * CEILING_TILE_SIZE,
+    };
+  }
+
+  markCeilingDigAt(worldX, worldY) {
+    if (!this.ceilingSolidGrid) return;
+
+    const radius = CEILING_DIG_RADIUS;
+    const originY = this.getCeilingOriginY();
+    const minCol = Math.floor((worldX - radius - this.getCeilingX()) / CEILING_TILE_SIZE);
+    const maxCol = Math.floor((worldX + radius - this.getCeilingX()) / CEILING_TILE_SIZE);
+    const minRow = Math.floor((worldY - radius - originY) / CEILING_TILE_SIZE);
+    const maxRow = Math.floor((worldY + radius - originY) / CEILING_TILE_SIZE);
+
+    for (let row = minRow; row <= maxRow; row += 1) {
+      for (let col = minCol; col <= maxCol; col += 1) {
+        if (!this.isCeilingCellSolid(col, row)) continue;
+
+        const cell = this.getCeilingCellWorldRect(col, row);
+        const closestX = Phaser.Math.Clamp(worldX, cell.left, cell.right);
+        const closestY = Phaser.Math.Clamp(worldY, cell.top, cell.bottom);
+        if (Phaser.Math.Distance.Between(worldX, worldY, closestX, closestY) <= radius) {
+          this.ceilingSolidGrid[row][col] = false;
+        }
+      }
+    }
+  }
+
+  isFeetOnSolidTop(feetY, cellTop) {
+    return feetY >= cellTop - 2 && feetY <= cellTop + CEILING_TOP_LANDING_TOLERANCE;
+  }
+
+  findCeilingLandingSurface(feetLeft, feetRight, feetY, fallSpeed = 0) {
+    const landingTolerance = CEILING_TOP_LANDING_TOLERANCE + Math.min(CEILING_FALL_LANDING_EXTRA, fallSpeed * 0.02);
+    const originY = this.getCeilingOriginY();
+    let landingSurfaceY = null;
+
+    for (let sampleX = feetLeft + 2; sampleX <= feetRight - 2; sampleX += CEILING_TILE_SIZE / 2) {
+      const col = Math.floor((sampleX - this.getCeilingX()) / CEILING_TILE_SIZE);
+      if (col < 0 || col >= this.ceilingCols) continue;
+
+      for (let row = this.ceilingRows - 1; row >= 0; row -= 1) {
+        if (!this.isCeilingCellSolid(col, row)) continue;
+
+        const cellTop = originY + row * CEILING_TILE_SIZE;
+        if (feetY < cellTop - 2) continue;
+        if (feetY > cellTop + landingTolerance) continue;
+
+        if (landingSurfaceY === null || cellTop > landingSurfaceY) {
+          landingSurfaceY = cellTop;
+        }
+        break;
+      }
+    }
+
+    return landingSurfaceY;
+  }
+
+  resolvePlayerCeilingSolidContacts() {
+    if (!this.player?.body || !this.ceilingSolidGrid) return;
+
+    const body = this.player.body;
+    const originY = this.getCeilingOriginY();
+    const minCol = Math.floor((body.left - this.getCeilingX()) / CEILING_TILE_SIZE);
+    const maxCol = Math.floor((body.right - this.getCeilingX()) / CEILING_TILE_SIZE);
+    const minRow = Math.floor((body.top - originY) / CEILING_TILE_SIZE);
+    const maxRow = Math.floor((body.bottom - originY) / CEILING_TILE_SIZE);
+    let adjusted = false;
+
+    for (let row = minRow; row <= maxRow; row += 1) {
+      for (let col = minCol; col <= maxCol; col += 1) {
+        if (!this.isCeilingCellSolid(col, row)) continue;
+
+        const cell = this.getCeilingCellWorldRect(col, row);
+        const overlapLeft = body.right - cell.left;
+        const overlapRight = cell.right - body.left;
+        const overlapTop = body.bottom - cell.top;
+        const overlapBottom = cell.bottom - body.top;
+
+        if (overlapLeft <= 0 || overlapRight <= 0 || overlapTop <= 0 || overlapBottom <= 0) continue;
+
+        if (this.isFeetOnSolidTop(body.bottom, cell.top) && body.velocity.y >= 0) continue;
+
+        const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+
+        if (minOverlap === overlapBottom && body.velocity.y < 0) {
+          this.player.y += overlapBottom;
+          body.setVelocityY(0);
+          adjusted = true;
+          continue;
+        }
+
+        if (minOverlap === overlapLeft) {
+          this.player.x -= overlapLeft;
+          adjusted = true;
+        } else if (minOverlap === overlapRight) {
+          this.player.x += overlapRight;
+          adjusted = true;
+        } else if (minOverlap === overlapTop) {
+          this.player.y -= overlapTop;
+          adjusted = true;
+        }
+      }
+    }
+
+    if (adjusted) {
+      body.updateFromGameObject();
+    }
+  }
+
+  isPointInRavineColumn(x) {
+    if (!this.hasExpandedWorld) return false;
+    const original = this.originalPlayArea;
+    const pa = this.playArea;
+    return (x >= pa.x && x < original.x) || (x >= original.x + original.width && x < pa.x + pa.width);
+  }
+
+  getRavineFloorSurfaceY() {
+    return this.playArea.y;
+  }
+
+  resolveRavineFloorLanding() {
+    if (!this.hasExpandedWorld || !this.player?.body) return false;
+
+    const body = this.player.body;
+    if (body.velocity.y < 0) return false;
+    if (!this.isPointInRavineColumn(body.center.x)) return false;
+
+    const floorTop = this.getRavineFloorSurfaceY();
+    const landingTolerance =
+      CEILING_TOP_LANDING_TOLERANCE + Math.min(CEILING_FALL_LANDING_EXTRA, body.velocity.y * 0.02);
+
+    if (body.bottom < floorTop - 2) return false;
+    if (body.bottom > floorTop + landingTolerance) return false;
+
+    const penetration = body.bottom - floorTop;
+    if (penetration > 0.5) {
+      this.player.y -= penetration;
+      body.updateFromGameObject();
+    }
+
+    body.setVelocityY(0);
+    return true;
+  }
+
+  resolvePlayerCeilingCollision() {
+    if (!this.player?.body || !this.ceilingSolidGrid) return;
+
+    this.playerSupportedByCeiling = false;
+    this.playerSupportedByRavineFloor = false;
+    this.ceilingSupportSurfaceY = null;
+
+    const body = this.player.body;
+    this.resolvePlayerCeilingSolidContacts();
+
+    if (body.velocity.y < 0) return;
+
+    if (this.resolveRavineFloorLanding()) {
+      this.playerSupportedByRavineFloor = true;
+      return;
+    }
+
+    const landingSurfaceY = this.findCeilingLandingSurface(
+      body.left,
+      body.right,
+      body.bottom,
+      body.velocity.y,
+    );
+    if (landingSurfaceY === null) return;
+
+    const penetration = body.bottom - landingSurfaceY;
+    if (penetration < -4) return;
+
+    if (penetration > 0.5) {
+      this.player.y -= penetration;
+      body.updateFromGameObject();
+    }
+
+    body.setVelocityY(0);
+    this.playerSupportedByCeiling = true;
+    this.ceilingSupportSurfaceY = landingSurfaceY;
+  }
+
+  isPlayerSupported() {
+    if (!this.player?.body) return false;
+    return this.player.body.blocked.down || this.playerSupportedByCeiling || this.playerSupportedByRavineFloor;
+  }
+
+  getCharacterHeadBounds(sprite) {
+    const bounds = this.getCharacterBodyBounds(sprite);
+    return {
+      left: bounds.left,
+      right: bounds.left + bounds.width,
+      top: bounds.top,
+      centerX: bounds.centerX,
+      width: bounds.width,
+    };
+  }
+
+  isCharacterNearCeiling(sprite) {
+    const head = this.getCharacterHeadBounds(sprite);
+    if (head.right < this.playArea.x || head.left > this.playArea.x + this.playArea.width) return false;
+    return head.top <= this.playArea.y + CEILING_DIG_RADIUS * 1.5;
+  }
+
+  digCeilingAt(worldX, worldY) {
+    if (!this.ceilingRenderTexture || !this.digBrush) return;
+    const originY = this.getCeilingOriginY();
+    if (worldY < originY || worldY > this.playArea.y) return;
+    if (worldX < this.getCeilingX() || worldX > this.getCeilingX() + this.getCeilingWidth()) return;
+
+    this.eraseCeilingVisualAt(worldX, worldY);
+    this.recordCeilingDigMark(worldX, worldY);
+    this.markCeilingDigAt(worldX, worldY);
+  }
+
+  updateCeilingDigging() {
+    if (!this.isCeilingDiggingEnabled()) return;
+    if (this.movementLocked || !this.player?.body) return;
+
+    const body = this.player.body;
+    if (body.velocity.y >= 0) return;
+    if (!this.isCharacterNearCeiling(this.player)) return;
+
+    const head = this.getCharacterHeadBounds(this.player);
+    const digY =
+      head.top <= this.playArea.y ? head.top + CEILING_DIG_RADIUS * 0.35 : this.playArea.y - CEILING_DIG_RADIUS * 0.15;
+    const sampleStep = Math.max(8, CEILING_DIG_RADIUS * 0.75);
+
+    for (let sampleX = head.left; sampleX <= head.right; sampleX += sampleStep) {
+      this.digCeilingAt(sampleX, digY);
+    }
+    this.digCeilingAt(head.centerX, digY);
+  }
+
+  cleanupCeiling() {
+    this.ceilingRenderTexture?.destroy();
+    this.ceilingRenderTexture = null;
+    this.ceilingBacking?.destroy();
+    this.ceilingBacking = null;
+    this.digBrush?.destroy();
+    this.digBrush = null;
+    this.ceilingSolidGrid = null;
+    this.ceilingDigMarks = [];
+    this.ceilingCols = 0;
+    this.ceilingRows = 0;
+    this.ceilingOriginY = 0;
+    this.playerSupportedByCeiling = false;
+    this.playerSupportedByRavineFloor = false;
+    this.ceilingSupportSurfaceY = null;
+    this.skyBackground?.destroy();
+    this.skyBackground = null;
+    this.skyBackgroundMask?.destroy();
+    this.skyBackgroundMask = null;
+    this.leftRavineFloor?.destroy();
+    this.leftRavineFloor = null;
+    this.rightRavineFloor?.destroy();
+    this.rightRavineFloor = null;
+    this.leftRavineFloorCollider?.destroy();
+    this.leftRavineFloorCollider = null;
+    this.rightRavineFloorCollider?.destroy();
+    this.rightRavineFloorCollider = null;
+    this.events.off("postupdate", this.resolvePlayerCeilingCollision, this);
+    this.events.off("postupdate", this.tryCompleteTurnCapture, this);
+  }
+
   update() {
+    if (this.finishShadowsKey && !this.movementLocked && Phaser.Input.Keyboard.JustDown(this.finishShadowsKey)) {
+      this.finishAllShadowReplays();
+    }
+
     if (!this.player?.body || !this.cursors) return;
 
     const body = this.player.body;
@@ -300,9 +1047,8 @@ class MainScene extends Phaser.Scene {
         this.player.setFlipX(false);
       }
 
-      if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && body.blocked.down) {
+      if (Phaser.Input.Keyboard.JustDown(this.cursors.up) && this.isPlayerSupported()) {
         body.setVelocityY(-this.jumpSpeed);
-        this.triggerStoryEvent("first-jump");
       }
       if (this.captureDownloadKey && Phaser.Input.Keyboard.JustDown(this.captureDownloadKey)) {
         this.endTurn();
@@ -311,179 +1057,180 @@ class MainScene extends Phaser.Scene {
 
     const halfW = body.width / 2;
 
-    this.player.x = Phaser.Math.Clamp(this.player.x, PLAY_AREA.x + halfW, PLAY_AREA.x + PLAY_AREA.width - halfW);
+    this.player.x = Phaser.Math.Clamp(
+      this.player.x,
+      this.playArea.x + halfW,
+      this.playArea.x + this.playArea.width - halfW,
+    );
+    this.checkWorldExpansion();
+    this.updateCeilingDigging();
     this.recordPlayerFrame();
-    this.updateShadowReplays();
-    this.updateFlowerProximityMessages();
-    this.updateHangman();
+    this.updateShadowInteractions();
+    this.updateFlowerInteraction();
   }
 
-  isAnyoneMoving() {
-    if (this.player?.body) {
-      const body = this.player.body;
-      const playerIsMoving =
-        Math.abs(body.velocity.x) > 10 || Math.abs(body.velocity.y) > 10 || !body.blocked.down;
-      if (playerIsMoving) return true;
-    }
-
-    return this.shadowReplays.some((replay) => replay.sprite?.active && !replay.isComplete);
-  }
-
-  isPlayerNearFlower() {
-    if (!this.flowerPosition || !this.player?.active) return false;
+  isPlayerMotionless() {
+    if (!this.player?.body) return true;
+    const body = this.player.body;
     return (
-      Phaser.Math.Distance.Between(this.player.x, this.player.y, this.flowerPosition.x, this.flowerPosition.y) <
-      FLOWER_BUTTON_DISTANCE
+      Math.abs(body.velocity.x) <= PLAYER_STOP_VELOCITY_THRESHOLD &&
+      Math.abs(body.velocity.y) <= PLAYER_STOP_VELOCITY_THRESHOLD
     );
   }
 
-  isHiikeGhostFinished() {
-    const hiikeReplay = this.shadowReplays.find(
-      (replay) => this.normalizePlayerTurn(replay.playerTurn) === "hiike" && replay.sprite?.active,
+  isPlayerStopped() {
+    if (!this.isPlayerMotionless() || !this.isPlayerSupported()) {
+      this.turnEndSettledFrameCount = 0;
+      return false;
+    }
+    this.turnEndSettledFrameCount += 1;
+    return this.turnEndSettledFrameCount >= TURN_END_SETTLED_FRAME_COUNT;
+  }
+
+  isPlayerOnFlower() {
+    if (!this.flowerPosition || !this.player?.active) return false;
+    const bounds = this.getCharacterBodyBounds(this.player);
+    const dx = Math.abs(bounds.centerX - this.flowerPosition.x);
+    const dy = Math.abs(bounds.bottom - this.flowerPosition.y);
+    return dx <= FLOWER_PROXIMITY_X && dy <= FLOWER_PROXIMITY_Y;
+  }
+
+  boundsOverlap(a, b) {
+    return a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+  }
+
+  isPlayerOverlappingShadow(replay) {
+    if (!this.player?.active || !replay.sprite?.active) return false;
+    const playerBounds = this.getCharacterBodyBounds(this.player);
+    const shadowBounds = this.getCharacterBodyBounds(replay.sprite);
+    if (this.boundsOverlap(playerBounds, shadowBounds)) return true;
+
+    return (
+      Phaser.Math.Distance.Between(
+        playerBounds.centerX,
+        playerBounds.bottom,
+        shadowBounds.centerX,
+        shadowBounds.bottom,
+      ) < SHADOW_MEET_DISTANCE
     );
-    if (!hiikeReplay) return true;
-    return hiikeReplay.isComplete;
   }
 
-  canInteractWithFlower() {
-    return this.isHiikeGhostFinished() && !this.isAnyoneMoving();
+  isFlowerDialogComplete() {
+    return this.hasCompletedFlowerOnce;
   }
 
-  markFlowerReadyIfNeeded() {
-    if (this.hasReleasedAlphabet || this.flowerReadyTime > 0) return;
-    if (this.canInteractWithFlower()) {
-      this.flowerReadyTime = this.time.now;
+  areAllShadowJokesComplete() {
+    const shadowsWithJokes = this.shadowReplays.filter((replay) => replay.jokeLine);
+    if (shadowsWithJokes.length === 0) return false;
+    return shadowsWithJokes.every((replay) => replay.hasSpokenJoke);
+  }
+
+  isShadowJokeInteractionLocked() {
+    return this.time.now < this.shadowJokeLockUntil;
+  }
+
+  updateShadowInteractions() {
+    if (!this.player?.active || !this.isCeilingDiggingEnabled()) return;
+    if (!this.isFlowerDialogComplete()) return;
+    if (this.areAllShadowJokesComplete()) return;
+
+    let overlappingShadow = null;
+    for (const replay of this.shadowReplays) {
+      if (!replay.jokeLine || !replay.sprite?.active) continue;
+
+      if (this.isPlayerOverlappingShadow(replay)) {
+        overlappingShadow = replay;
+        if (!replay.hasSpokenJoke && !this.isShadowJokeInteractionLocked()) {
+          replay.hasSpokenJoke = true;
+          this.shadowJokeLockUntil = this.time.now + SHADOW_JOKE_DISPLAY_MS;
+          this.showStoryText(replay.jokeLine, {
+            speaker: replay.playerTurn,
+            autoHideMs: SHADOW_JOKE_DISPLAY_MS,
+          });
+        }
+      }
+    }
+
+    if (
+      !overlappingShadow &&
+      this.storyTextSpeaker &&
+      this.storyTextSpeaker !== "flower" &&
+      !this.isPlayerOnFlower() &&
+      !this.isShadowJokeInteractionLocked()
+    ) {
+      this.hideStoryText();
     }
   }
 
-  isFlowerBoredMessageAvailable() {
-    return this.flowerReadyTime > 0 && this.time.now - this.flowerReadyTime >= FLOWER_BORED_DELAY_MS;
+  getCharacterTextColor(playerTurn) {
+    const style = this.getCharacterStyle(playerTurn);
+    return style.textColor ?? FLOWER_TEXT_COLOR;
   }
 
-  isPostAlphabetMemoryAvailable() {
-    if (!this.hasReleasedAlphabet || !this.alphabetReleasedTime) return false;
-    return this.time.now - this.alphabetReleasedTime >= FLOWER_MEMORY_DELAY_MS;
-  }
-
-  showFlowerProximityMessage(text) {
-    this.showingFlowerProximityMessage = true;
-    this.showStoryText(text, { autoHideMs: 0, force: true });
-  }
-
-  hideFlowerProximityMessage() {
-    if (!this.showingFlowerProximityMessage) return;
-    this.showingFlowerProximityMessage = false;
-    this.hideStoryText();
-  }
-
-  updateFlowerProximityMessages() {
+  updateFlowerInteraction() {
     if (!this.flowerPosition || !this.player?.active) return;
 
-    this.markFlowerReadyIfNeeded();
-    const nearFlower = this.isPlayerNearFlower();
-
-    if (this.hasReleasedAlphabet) {
-      if (nearFlower && this.flowerMemoryRevealActive && this.isPostAlphabetMemoryAvailable()) {
-        this.showFlowerProximityMessage(FLOWER_MEMORY_LINE);
-      } else if (nearFlower && this.flowerRelaxRevealActive && !this.isPostAlphabetMemoryAvailable()) {
-        this.showFlowerProximityMessage(FLOWER_RELAX_LINE);
-      } else {
-        this.hideFlowerProximityMessage();
+    if (!this.isCeilingDiggingEnabled()) {
+      if (this.wasOnFlower) {
+        this.wasOnFlower = false;
+        this.hideStoryText();
       }
       return;
     }
 
-    if (!nearFlower) {
-      this.hideFlowerProximityMessage();
-      return;
-    }
+    const onFlower = this.isPlayerOnFlower();
 
-    if (!this.canInteractWithFlower()) {
-      if (!this.hasSeenFlowerReadyWhisper) {
-        this.showFlowerProximityMessage(FLOWER_MOVEMENT_LINE);
+    if (!onFlower) {
+      if (this.wasOnFlower) {
+        this.hasLeftFlowerSinceLastLine = true;
+      }
+      this.wasOnFlower = false;
+      if (this.storyTextSpeaker === "flower") {
+        this.hideStoryText();
       }
       return;
     }
 
-    this.hasSeenFlowerReadyWhisper = true;
-    if (this.isFlowerBoredMessageAvailable()) {
-      this.showFlowerProximityMessage(FLOWER_BORED_LINE);
-    } else {
-      this.showFlowerProximityMessage(FLOWER_WHISPER_LINE);
-    }
-  }
+    if (this.wasOnFlower) return;
+    if (!this.hasLeftFlowerSinceLastLine) return;
 
-  updateStoryTriggers() {
-    if (this.hasSpawnedDocument && !this.hasReachedDocument && this.documentPosition) {
-      const distanceToDocument = Phaser.Math.Distance.Between(
-        this.player.x,
-        this.player.y,
-        this.documentPosition.x,
-        this.documentPosition.y,
-      );
-      if (distanceToDocument < DOCUMENT_PICKUP_DISTANCE) {
-        this.triggerStoryEvent("reach-document");
+    if (this.flowerLineIndex >= TURN_4_FLOWER_LINES.length) {
+      if (!this.areAllShadowJokesComplete()) {
+        this.wasOnFlower = true;
+        return;
       }
-    }
-  }
-
-  triggerStoryEvent(eventName) {
-    if (this.storySequenceLocked) return;
-    if (eventName === "first-jump" && this.storyEventsFired.has("first-jump")) return;
-    if (eventName === "reach-flower" || eventName === "leave-flower" || eventName === "first-jump") {
-      this.storyEventsFired.add(eventName);
-      return;
+      this.flowerLineIndex = 0;
     }
 
-    if (eventName === "reach-document" && !this.hasReachedDocument) {
-      this.hasReachedDocument = true;
-      this.documentPickup?.destroy();
-      this.documentPickup = null;
-      this.endTurn();
+    this.showStoryText(TURN_4_FLOWER_LINES[this.flowerLineIndex]);
+    this.flowerLineIndex += 1;
+    if (this.flowerLineIndex >= TURN_4_FLOWER_LINES.length) {
+      this.hasCompletedFlowerOnce = true;
     }
+    this.hasLeftFlowerSinceLastLine = false;
+    this.wasOnFlower = true;
   }
 
   showStoryText(text, options = {}) {
-    const { autoHideMs = 0, force = false, speaker = null } = options;
-    if (this.storySequenceLocked && !force) return;
+    const { autoHideMs = 0, speaker = null } = options;
+    const isFlowerText = speaker === null;
 
     if (this.storyHideTimer) {
       this.storyHideTimer.remove(false);
       this.storyHideTimer = null;
     }
 
-    const formattedText = this.formatStoryText(text);
-    this.storyText.setWordWrapWidth(this.getStoryTextWrapWidth(), true);
-    this.storyText.setColor(this.getStoryTextColor(speaker));
-    this.storyText.setText(formattedText);
+    this.storyTextSpeaker = isFlowerText ? "flower" : this.normalizePlayerTurn(speaker);
+    this.storyText.setWordWrapWidth(FLOWER_TEXT_WRAP_VISUAL_WIDTH / FLOWER_TEXT_SCALE, true);
+    this.storyText.setColor(isFlowerText ? FLOWER_TEXT_COLOR : this.getCharacterTextColor(speaker));
+    this.storyText.setText(text);
     this.storyText.setVisible(true);
 
     if (autoHideMs > 0) {
       this.storyHideTimer = this.time.delayedCall(autoHideMs, () => {
-        // Keep the flower text visible if the player is currently next to it.
-        if (!this.wasNearFlower) {
-          this.hideStoryText();
-        }
+        this.hideStoryText();
       });
     }
-  }
-
-  current_player_says(text, options = {}) {
-    const { autoHideMs = STORY_TEXT_DEFAULT_AUTO_HIDE_MS, ...restOptions } = options;
-    this.showStoryText(text, {
-      ...restOptions,
-      autoHideMs,
-      speaker: this.playerTurn,
-    });
-  }
-
-  other_player_says(text, options = {}) {
-    const { autoHideMs = STORY_TEXT_DEFAULT_AUTO_HIDE_MS, ...restOptions } = options;
-    this.showStoryText(text, {
-      ...restOptions,
-      autoHideMs,
-      speaker: this.getOppositePlayerTurn(this.playerTurn),
-    });
   }
 
   hideStoryText() {
@@ -491,6 +1238,7 @@ class MainScene extends Phaser.Scene {
       this.storyHideTimer.remove(false);
       this.storyHideTimer = null;
     }
+    this.storyTextSpeaker = null;
     this.storyText.setVisible(false);
   }
 
@@ -510,21 +1258,110 @@ class MainScene extends Phaser.Scene {
     return normalizedTurn === "pulsar" ? "hiike" : "pulsar";
   }
 
+  getCharacterBodyBounds(sprite) {
+    const displayWidth = sprite.displayWidth;
+    const displayHeight = sprite.displayHeight;
+    const bodyWidth = displayWidth * CHARACTER_BODY_WIDTH_RATIO;
+    const bodyHeight = displayHeight * CHARACTER_BODY_HEIGHT_RATIO;
+    const offsetX = displayWidth * CHARACTER_BODY_OFFSET_X_RATIO;
+    const offsetY = displayHeight * CHARACTER_BODY_OFFSET_Y_RATIO;
+    const originX = sprite.originX ?? 0.5;
+    const originY = sprite.originY ?? 0.5;
+    const left = sprite.x - displayWidth * originX + offsetX;
+    const top = sprite.y - displayHeight * originY + offsetY;
+
+    return {
+      left,
+      top,
+      bottom: top + bodyHeight,
+      right: left + bodyWidth,
+      width: bodyWidth,
+      height: bodyHeight,
+      centerX: left + bodyWidth / 2,
+      topY: top,
+    };
+  }
+
+  createCharacterStandPlatform(ownerSprite) {
+    const bounds = this.getCharacterBodyBounds(ownerSprite);
+    const platform = this.add.rectangle(
+      bounds.centerX,
+      bounds.topY + CHARACTER_STAND_PLATFORM_HEIGHT / 2,
+      bounds.width,
+      CHARACTER_STAND_PLATFORM_HEIGHT,
+      0x000000,
+      0,
+    );
+    this.physics.add.existing(platform, true);
+    platform.setData("ownerSprite", ownerSprite);
+    this.characterStandPlatforms.add(platform);
+    return platform;
+  }
+
+  syncCharacterStandPlatform(platform, ownerSprite) {
+    if (!platform?.body || !ownerSprite?.active) return;
+
+    const bounds = this.getCharacterBodyBounds(ownerSprite);
+    platform.setPosition(bounds.centerX, bounds.topY + CHARACTER_STAND_PLATFORM_HEIGHT / 2);
+    platform.body.setSize(bounds.width, CHARACTER_STAND_PLATFORM_HEIGHT);
+    platform.body.updateFromGameObject();
+  }
+
+  syncCharacterStandPlatforms() {
+    for (const replay of this.shadowReplays) {
+      if (replay.standPlatform && replay.sprite?.active) {
+        this.syncCharacterStandPlatform(replay.standPlatform, replay.sprite);
+      }
+    }
+
+    if (this.playerStandPlatform && this.player?.active) {
+      this.syncCharacterStandPlatform(this.playerStandPlatform, this.player);
+    }
+  }
+
+  canPlayerLandOnCharacterPlatform(player, platform) {
+    if (platform.getData("ownerSprite") === player) return false;
+    if (!player?.body || !platform?.body) return false;
+    if (player.body.velocity.y < 0) return false;
+
+    return player.body.bottom <= platform.body.top + CHARACTER_STAND_PLATFORM_LANDING_MARGIN;
+  }
+
+  setupCharacterStandColliders() {
+    if (!this.player || this.characterStandColliderAdded) return;
+
+    this.physics.add.collider(
+      this.player,
+      this.characterStandPlatforms,
+      null,
+      this.canPlayerLandOnCharacterPlatform,
+      this,
+    );
+    this.characterStandColliderAdded = true;
+  }
+
+  preUpdateCharacters() {
+    this.updateShadowReplays();
+    this.syncCharacterStandPlatforms();
+  }
+
   createPlayer() {
     if (this.player?.active) return;
 
     const playerStyle = this.getCharacterStyle(this.playerTurn);
     this.player = this.physics.add
-      .sprite(PLAY_AREA.x + 95, PLAY_AREA.y + PLAY_AREA.height - 22, playerStyle.textureKey)
-      .setScale(1.4);
+      .sprite(this.originalPlayArea.x + 95, this.playArea.y + this.playArea.height - 22, playerStyle.textureKey)
+      .setScale(CHARACTER_SCALE);
     this.player.setDepth(5);
     this.player.setAlpha(1);
     this.player.body.setAllowGravity(true);
     this.player.body.setCollideWorldBounds(false);
-    this.player.body.setSize(this.player.width * 0.55, this.player.height * 0.82);
-    this.player.body.setOffset(this.player.width * 0.2, this.player.height * 0.18);
+    this.player.body.setSize(this.player.width * CHARACTER_BODY_WIDTH_RATIO, this.player.height * CHARACTER_BODY_HEIGHT_RATIO);
+    this.player.body.setOffset(this.player.width * CHARACTER_BODY_OFFSET_X_RATIO, this.player.height * CHARACTER_BODY_OFFSET_Y_RATIO);
     this.player.body.setGravityY(950);
     this.physics.add.collider(this.player, this.ground);
+    this.setupRavineFloorColliders();
+    this.playerStandPlatform = this.createCharacterStandPlatform(this.player);
   }
 
   setCurrentPlayerTurn(playerTurn) {
@@ -540,31 +1377,43 @@ class MainScene extends Phaser.Scene {
   recordPlayerFrame() {
     if (!this.player) return;
 
+    const legacy = toLegacyCoords(this.player.x, this.player.y);
     this.actionHistory.push({
       time: this.time.now - this.recordingStartTime,
-      x: this.player.x,
-      y: this.player.y,
+      x: legacy.x,
+      y: legacy.y,
       flipX: this.player.flipX,
     });
   }
 
-  startShadowReplay(frames, playerTurn = INITIAL_PLAYER) {
+  startShadowReplay(frames, playerTurn = INITIAL_PLAYER, runNumber = null) {
     if (!Array.isArray(frames) || frames.length < 2) return;
 
     const firstFrame = frames[0];
     const style = this.getCharacterStyle(playerTurn);
     const shadow = this.add
       .sprite(firstFrame.x, firstFrame.y, style.textureKey)
-      .setScale(1.4)
+      .setScale(CHARACTER_SCALE)
       .setDepth(4);
     shadow.setTint(style.shadowTint);
     shadow.setAlpha(style.shadowAlpha);
     shadow.setFlipX(firstFrame.flipX);
 
+    const standPlatform = this.createCharacterStandPlatform(shadow);
+    const jokesInOrder = [SHADOW_JOKES_BY_RUN[1], SHADOW_JOKES_BY_RUN[2], SHADOW_JOKES_BY_RUN[3]];
+    const jokeLine =
+      (Number.isInteger(runNumber) && SHADOW_JOKES_BY_RUN[runNumber]) ||
+      jokesInOrder[this.shadowReplays.length] ||
+      null;
+
     this.shadowReplays.push({
       sprite: shadow,
+      standPlatform,
       frames,
       playerTurn: this.normalizePlayerTurn(playerTurn),
+      runNumber,
+      jokeLine,
+      hasSpokenJoke: false,
       startTime: this.time.now,
       frameIndex: 0,
       isComplete: false,
@@ -575,6 +1424,7 @@ class MainScene extends Phaser.Scene {
     const runFilePaths = await this.discoverPastRunFiles();
     const pastRunsData = await this.loadPastRunsData(runFilePaths);
     this.applyPastRunsSnapshot(pastRunsData);
+    this.applyPersistedWorldState(pastRunsData);
     this.startPastRunReplays(pastRunsData);
   }
 
@@ -670,7 +1520,7 @@ class MainScene extends Phaser.Scene {
     for (const runData of pastRunsData) {
       if (runData.runGame !== GAME_ID) continue;
       if (runData.replayFrames.length < 2) continue;
-      this.startShadowReplay(runData.replayFrames, runData.replayPlayerTurn);
+      this.startShadowReplay(runData.replayFrames, runData.replayPlayerTurn, runData.runNumber);
     }
   }
 
@@ -780,17 +1630,44 @@ class MainScene extends Phaser.Scene {
           Number.isFinite(frame.y) &&
           typeof frame.flipX === "boolean",
       )
-      .map((frame) => ({
-        time: frame.time,
-        x: frame.x,
-        y: frame.y,
-        flipX: frame.flipX,
-      }))
+      .map((frame) => {
+        const world = toWorldCoords(frame.x, frame.y);
+        return {
+          time: frame.time,
+          x: world.x,
+          y: world.y,
+          flipX: frame.flipX,
+        };
+      })
       .sort((a, b) => a.time - b.time);
   }
 
   getNextRunNumber() {
     return Math.max(this.loadedRunMaxNumberForGame, this.loadedRunCountForGame) + 1;
+  }
+
+  isCeilingDiggingEnabled() {
+    return this.getNextRunNumber() === CEILING_DIGGING_RUN_NUMBER;
+  }
+
+  finishAllShadowReplays() {
+    for (const replay of this.shadowReplays) {
+      if (replay.isComplete) continue;
+
+      const { sprite, frames } = replay;
+      if (!sprite?.active || !Array.isArray(frames) || frames.length === 0) {
+        replay.isComplete = true;
+        continue;
+      }
+
+      const lastFrame = frames[frames.length - 1];
+      sprite.setPosition(lastFrame.x, lastFrame.y);
+      sprite.setFlipX(lastFrame.flipX);
+      replay.frameIndex = frames.length - 1;
+      replay.isComplete = true;
+    }
+
+    this.syncCharacterStandPlatforms();
   }
 
   updateShadowReplays() {
@@ -855,7 +1732,7 @@ class MainScene extends Phaser.Scene {
   endTurn(options = {}) {
     const { announce = true } = options;
     if (this.hasTriggeredTurnEndSequence) return;
-    if (this.captureDownloadInProgress) return;
+    if (this.captureDownloadInProgress || this.awaitingCaptureAfterStop) return;
     if (this.hasDownloadedCapture) {
       if (announce) {
         this.showStoryText("Recording already downloaded.", { autoHideMs: 1300 });
@@ -869,7 +1746,24 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.startTurnEndSequence();
+    this.hasTriggeredTurnEndSequence = true;
+    this.cameras.main.flash(500, 255, 255, 255, true);
+    this.switchMusicToLight();
+    this.awaitingCaptureAfterStop = true;
+    this.turnEndRequestedAt = this.time.now;
+    this.turnEndSettledFrameCount = 0;
+    this.lockMovement();
+  }
+
+  tryCompleteTurnCapture() {
+    if (!this.awaitingCaptureAfterStop || this.captureDownloadInProgress) return;
+
+    const elapsed = this.time.now - this.turnEndRequestedAt;
+    const timedOut = elapsed >= TURN_END_SETTLE_TIMEOUT_MS;
+    const minRecordElapsed = !this.hasExpandedWorld || elapsed >= TURN_END_MIN_RECORD_MS;
+    if ((!this.isPlayerStopped() || !minRecordElapsed) && !timedOut) return;
+
+    this.awaitingCaptureAfterStop = false;
     this.captureDownloadInProgress = true;
 
     this.createCaptureZip()
@@ -878,21 +1772,12 @@ class MainScene extends Phaser.Scene {
       })
       .catch((error) => {
         console.warn("Unable to save recording:", error);
-        if (announce) {
-          this.showStoryText("Could not save recording.", { autoHideMs: 1600 });
-        }
+        this.showStoryText("Could not save recording.", { autoHideMs: 1600 });
       })
       .finally(() => {
         this.captureDownloadInProgress = false;
         this.recorder = null;
       });
-  }
-
-  startTurnEndSequence() {
-    if (this.hasTriggeredTurnEndSequence) return;
-    this.hasTriggeredTurnEndSequence = true;
-    this.cameras.main.flash(500, 255, 255, 255, true);
-    this.time.delayedCall(500, () => this.lockMovement());
   }
 
   lockMovement() {
@@ -921,6 +1806,11 @@ class MainScene extends Phaser.Scene {
       durationMs: this.actionHistory.length ? this.actionHistory[this.actionHistory.length - 1].time : 0,
       frames: this.actionHistory,
     };
+
+    if (this.hasExpandedWorld) {
+      movementData.world_expanded = true;
+      movementData.ceiling_state = this.serializeCeilingState();
+    }
 
     zip.file("run/run.webm", recording.blob);
     zip.file("run/run.json", JSON.stringify(movementData, null, 2));
@@ -952,474 +1842,35 @@ class MainScene extends Phaser.Scene {
   }
 
   cleanupShadowReplays() {
-    if (this.storySequenceTimer) {
-      this.storySequenceTimer.remove(false);
-      this.storySequenceTimer = null;
-    }
-    this.documentPickup?.destroy();
-    this.documentPickup = null;
-    this.cleanupHangman();
     for (const replay of this.shadowReplays) {
+      replay.standPlatform?.destroy();
       replay.sprite?.destroy();
     }
     this.shadowReplays = [];
-  }
-
-  initHangmanState() {
-    if (this.hangmanActive) return;
-    this.hangmanActive = true;
-    this.phraseGuessSlots = this.createEmptyPhraseSlots();
-    this.hangmanWon = false;
-    this.isEvaluatingPhrase = false;
-    this.hangmanDisplayText = null;
-
-    this.letterTiles = this.add.group();
-    this.letterTileColliderAdded = false;
-    this.playerWasAirborne = false;
-    this.lastLandingTile = null;
-  }
-
-  revealHangmanPhrase() {
-    if (this.hangmanDisplayText?.active) return;
-
-    this.hangmanDisplayText = this.add
-      .text(PLAY_AREA.x + PLAY_AREA.width / 2, PLAY_AREA.y + 18, this.getHangmanBlankDisplay(), {
-        fontFamily: "Georgia, Times New Roman, serif",
-        fontSize: "34px",
-        color: "#fff4c8",
-        align: "center",
-        letterSpacing: 8,
-        stroke: "#4a3a24",
-        strokeThickness: 5,
-      })
-      .setOrigin(0.5, 0)
-      .setDepth(8);
-  }
-
-  animateFlowerPress() {
-    if (!this.flowerGraphics?.active) return;
-    this.tweens.add({
-      targets: this.flowerGraphics,
-      scaleY: 0.88,
-      duration: 120,
-      yoyo: true,
-      ease: "Quad.Out",
-    });
-  }
-
-  releaseAlphabetFromFlower() {
-    if (!this.hangmanActive || this.hangmanWon || this.hasReleasedAlphabet) return;
-    this.hasReleasedAlphabet = true;
-    this.alphabetReleasedTime = this.time.now;
-    this.hideFlowerProximityMessage();
-    this.animateFlowerPress();
-    this.revealHangmanPhrase();
-
-    const letters = HANGMAN_ALPHABET.split("");
-
-    letters.forEach((letterChar, index) => {
-      this.time.delayedCall(index * 55, () => this.spawnLetterTile(letterChar, index));
-    });
-  }
-
-  createEmptyPhraseSlots() {
-    return HANGMAN_PHRASE_SLOTS.map((slot) => (slot === " " ? " " : "-"));
-  }
-
-  getHangmanBlankDisplay() {
-    return this.formatPhraseSlots(this.createEmptyPhraseSlots());
-  }
-
-  formatPhraseSlots(slots) {
-    let wordIndex = 0;
-    return HANGMAN_WORDS.map((word) => {
-      const segment = slots.slice(wordIndex, wordIndex + word.length).join("");
-      wordIndex += word.length + 1;
-      return segment;
-    }).join(" ");
-  }
-
-  getPhraseGuessString() {
-    return this.formatPhraseSlots(this.phraseGuessSlots);
-  }
-
-  updateHangmanDisplay() {
-    if (!this.hangmanDisplayText?.active) return;
-    this.hangmanDisplayText.setText(this.getPhraseGuessString());
-  }
-
-  addLetterToPhraseGuess(letterChar) {
-    const letter = typeof letterChar === "string" ? letterChar.toUpperCase() : "";
-    if (!letter) return false;
-
-    for (let index = 0; index < this.phraseGuessSlots.length; index += 1) {
-      if (this.phraseGuessSlots[index] === "-") {
-        this.phraseGuessSlots[index] = letter;
-        this.updateHangmanDisplay();
-        return true;
-      }
-    }
-
-    return false;
-  }
-
-  isPhraseGuessComplete() {
-    return this.phraseGuessSlots.every((slot) => slot !== "-");
-  }
-
-  playHangmanBuzzSound() {
-    const audioContext = this.sound?.context;
-    if (audioContext?.state === "suspended") {
-      audioContext.resume();
-    }
-
-    if (audioContext && this.sound?.masterVolumeNode) {
-      const startTime = audioContext.currentTime;
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      oscillator.type = "square";
-      oscillator.frequency.setValueAtTime(90, startTime);
-      oscillator.frequency.exponentialRampToValueAtTime(55, startTime + 0.35);
-      gain.gain.setValueAtTime(0.22, startTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, startTime + 0.5);
-      oscillator.connect(gain);
-      gain.connect(this.sound.masterVolumeNode);
-      oscillator.start(startTime);
-      oscillator.stop(startTime + 0.5);
-    }
-
-    if (this.cache.audio.exists("sad")) {
-      this.sound.play("sad", { volume: 0.48, detune: -700 });
-    }
-  }
-
-  playHangmanSuccessSound() {
-    if (this.cache.audio.exists("light")) {
-      this.sound.play("light", { volume: 0.45 });
-    }
-  }
-
-  resetHangmanAttempt() {
-    this.phraseGuessSlots = this.createEmptyPhraseSlots();
-    this.lastLandingTile = null;
-    this.isEvaluatingPhrase = false;
-
-    if (this.hangmanDisplayText?.active) {
-      this.hangmanDisplayText.setText(this.getHangmanBlankDisplay());
-    }
-
-    if (!this.letterTiles) return;
-
-    this.letterTiles.children.each((tilePlatform) => {
-      tilePlatform.hasBeenStomped = false;
-      return true;
-    });
-  }
-
-  evaluatePhraseAfterAllLettersTried() {
-    if (this.hangmanWon || this.isEvaluatingPhrase || !this.isPhraseGuessComplete()) return;
-    this.isEvaluatingPhrase = true;
-
-    const guess = this.getPhraseGuessString();
-    if (guess === HANGMAN_SECRET) {
-      this.hangmanWon = true;
-      this.playHangmanSuccessSound();
-      this.cameras.main.flash(280, 255, 244, 180, true);
-      return;
-    }
-
-    this.playHangmanBuzzSound();
-    this.resetHangmanAttempt();
-  }
-
-  getLetterTileSlot(index) {
-    const col = index % LETTER_TILE_COLS;
-    const row = Math.floor(index / LETTER_TILE_COLS);
-    const pitch = LETTER_TILE_SIZE + LETTER_TILE_GAP;
-    const gridWidth = LETTER_TILE_COLS * pitch - LETTER_TILE_GAP;
-    const startX = PLAY_AREA.x + (PLAY_AREA.width - gridWidth) / 2 + LETTER_TILE_SIZE / 2;
-    const groundSurfaceY = PLAY_AREA.y + PLAY_AREA.height - 6;
-    const groundRowCenterY = groundSurfaceY + LETTER_TILE_SIZE / 2;
-    const rowStep = LETTER_TILE_SIZE + LETTER_TILE_ROW_GAP;
-
-    return {
-      x: startX + col * pitch,
-      y: groundRowCenterY - row * rowStep,
-      row,
-    };
-  }
-
-  spawnLetterTile(letterChar, index) {
-    if (!this.hangmanActive || this.hangmanWon || !this.letterTiles) return;
-    if (typeof letterChar !== "string") return;
-
-    const char = letterChar.toUpperCase();
-    const slot = this.getLetterTileSlot(index);
-    const spawnY = PLAY_AREA.y - 36;
-
-    const tilePlatform = this.add
-      .rectangle(slot.x, spawnY, LETTER_TILE_SIZE, LETTER_TILE_SIZE, 0x5d4e34, 0.96)
-      .setStrokeStyle(2, 0xd4bc7a)
-      .setDepth(6);
-    const tileLabel = this.add
-      .text(slot.x, spawnY, char, {
-        fontFamily: "Arial, sans-serif",
-        fontSize: `${LETTER_TILE_FONT_SIZE}px`,
-        color: "#fff8dc",
-        stroke: "#2a2115",
-        strokeThickness: 3,
-      })
-      .setOrigin(0.5)
-      .setDepth(7);
-
-    tilePlatform.letterChar = char;
-    tilePlatform.hasBeenStomped = false;
-    tilePlatform.isLanded = false;
-    tilePlatform.slotX = slot.x;
-    tilePlatform.slotY = slot.y;
-    tilePlatform.tileLabel = tileLabel;
-
-    this.letterTiles.add(tilePlatform);
-
-    this.tweens.add({
-      targets: [tilePlatform, tileLabel],
-      y: slot.y,
-      duration: 460 + index * 22,
-      ease: "Bounce.Out",
-      onComplete: () => this.enableLetterTilePlatform(tilePlatform),
-    });
-  }
-
-  enableLetterTilePlatform(tilePlatform) {
-    if (!tilePlatform?.active) return;
-    tilePlatform.isLanded = true;
-    tilePlatform.x = tilePlatform.slotX;
-    tilePlatform.y = tilePlatform.slotY;
-    if (tilePlatform.tileLabel?.active) {
-      tilePlatform.tileLabel.x = tilePlatform.slotX;
-      tilePlatform.tileLabel.y = tilePlatform.slotY;
-    }
-
-    this.physics.add.existing(tilePlatform, true);
-    tilePlatform.body.setSize(LETTER_TILE_SIZE, LETTER_TILE_SIZE, true);
-
-    if (!this.letterTileColliderAdded) {
-      this.physics.add.collider(this.player, this.letterTiles);
-      this.physics.add.collider(this.letterTiles, this.letterTiles);
-      this.letterTileColliderAdded = true;
-    }
-  }
-
-  getTileUnderPlayer() {
-    if (!this.player?.body || !this.letterTiles) return null;
-
-    let landedTile = null;
-    this.letterTiles.children.each((tilePlatform) => {
-      if (!tilePlatform?.active || !tilePlatform.isLanded) return true;
-      if (!this.isPlayerOnTile(tilePlatform)) return true;
-      landedTile = tilePlatform;
-      return false;
-    });
-
-    return landedTile;
-  }
-
-  isPlayerOnTile(tilePlatform) {
-    if (!this.player?.body || !tilePlatform?.active || !tilePlatform.isLanded) return false;
-
-    const half = LETTER_TILE_SIZE / 2;
-    const tileTop = tilePlatform.y - half;
-    const feetX = this.player.x;
-    const feetY = this.player.body.bottom;
-    const onTileX = Math.abs(feetX - tilePlatform.x) <= half + 6;
-    const onTileY = feetY >= tileTop - 10 && feetY <= tileTop + 14;
-    return onTileX && onTileY;
-  }
-
-  checkPlayerLetterLanding() {
-    if (!this.hangmanActive || this.hangmanWon || !this.player?.body) return;
-
-    const body = this.player.body;
-    const isAirborne = !body.blocked.down;
-    const justLanded = body.blocked.down && this.playerWasAirborne;
-    this.playerWasAirborne = isAirborne;
-
-    if (!justLanded) return;
-
-    const tileUnderPlayer = this.getTileUnderPlayer();
-    if (!tileUnderPlayer || tileUnderPlayer === this.lastLandingTile) return;
-
-    this.lastLandingTile = tileUnderPlayer;
-    this.activateLetterFromLanding(tileUnderPlayer);
-  }
-
-  activateLetterFromLanding(tilePlatform) {
-    if (!tilePlatform?.active || !tilePlatform.isLanded || !this.hasReleasedAlphabet || this.hangmanWon) return;
-
-    const letterAdded = this.addLetterToPhraseGuess(tilePlatform.letterChar);
-    if (!letterAdded) return;
-
-    if (!this.isPhraseGuessComplete()) return;
-
-    this.time.delayedCall(80, () => this.evaluatePhraseAfterAllLettersTried());
-  }
-
-  updateHangman() {
-    if (!this.hangmanActive || !this.flowerPosition) return;
-
-    const distanceToFlower = Phaser.Math.Distance.Between(
-      this.player.x,
-      this.player.y,
-      this.flowerPosition.x,
-      this.flowerPosition.y,
-    );
-    const nearFlower = distanceToFlower < FLOWER_BUTTON_DISTANCE;
-
-    if (this.actionKey && Phaser.Input.Keyboard.JustDown(this.actionKey) && nearFlower && !this.hangmanWon) {
-      if (this.hasReleasedAlphabet) {
-        if (this.isPostAlphabetMemoryAvailable()) {
-          this.flowerRelaxRevealActive = false;
-          this.flowerMemoryRevealActive = true;
-        } else {
-          this.flowerRelaxRevealActive = true;
-        }
-        return;
-      }
-
-      if (this.canInteractWithFlower()) {
-        this.releaseAlphabetFromFlower();
-      }
-    }
-
-    if (!this.player?.body?.blocked.down) {
-      this.lastLandingTile = null;
-    }
-    this.checkPlayerLetterLanding();
-  }
-
-  cleanupHangman() {
-    this.hangmanDisplayText?.destroy();
-    this.hangmanDisplayText = null;
-    if (this.letterTiles) {
-      this.letterTiles.children.each((tilePlatform) => {
-        tilePlatform.tileLabel?.destroy();
-        return true;
-      });
-      this.letterTiles.clear(true, true);
-      this.letterTiles = null;
-    }
-    this.hasReleasedAlphabet = false;
-    this.flowerReadyTime = 0;
-    this.alphabetReleasedTime = 0;
-    this.showingFlowerProximityMessage = false;
-    this.hasSeenFlowerReadyWhisper = false;
-    this.flowerRelaxRevealActive = false;
-    this.flowerMemoryRevealActive = false;
-    this.letterTileColliderAdded = false;
-    this.playerWasAirborne = false;
-    this.lastLandingTile = null;
-    this.phraseGuessSlots = [];
-    this.isEvaluatingPhrase = false;
-    this.hangmanActive = false;
-  }
-
-  spawnDocumentPickup() {
-    if (this.hasSpawnedDocument || !this.flowerPosition) return;
-    const x = Phaser.Math.Clamp(this.flowerPosition.x + 72, PLAY_AREA.x + 20, PLAY_AREA.x + PLAY_AREA.width - 20);
-    const y = this.flowerPosition.y - 1;
-
-    const documentPickup = this.add.graphics();
-    documentPickup.fillStyle(0xf6eac6, 1);
-    documentPickup.lineStyle(2, 0x8e7a52, 1);
-    documentPickup.fillRoundedRect(x - 10, y - 14, 20, 26, 2);
-    documentPickup.strokeRoundedRect(x - 10, y - 14, 20, 26, 2);
-    documentPickup.lineStyle(1, 0x8e7a52, 0.95);
-    documentPickup.lineBetween(x - 5, y - 6, x + 5, y - 6);
-    documentPickup.lineBetween(x - 5, y - 1, x + 5, y - 1);
-    documentPickup.lineBetween(x - 5, y + 4, x + 2, y + 4);
-    documentPickup.fillStyle(0xfff6de, 1);
-    documentPickup.fillTriangle(x + 10, y - 14, x + 5, y - 14, x + 10, y - 9);
-    documentPickup.setDepth(3);
-
-    this.tweens.add({
-      targets: documentPickup,
-      y: "-=3",
-      duration: 650,
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.InOut",
-    });
-
-    this.documentPickup = documentPickup;
-    this.documentPosition = { x, y };
-    this.hasSpawnedDocument = true;
-  }
-
-  formatStoryText(rawText) {
-    if (typeof rawText !== "string") return rawText;
-    return rawText.replace(/_([^_]+)_/g, (_match, groupText) => this.toItalicUnicode(groupText));
-  }
-
-  toItalicUnicode(value) {
-    if (typeof value !== "string") return value;
-    return Array.from(value)
-      .map((char) => {
-        const code = char.codePointAt(0);
-        if (code >= 65 && code <= 90) {
-          return String.fromCodePoint(0x1d434 + (code - 65));
-        }
-        if (code >= 97 && code <= 122) {
-          if (code === 104) return String.fromCodePoint(0x210e); // Lowercase italic h has a dedicated codepoint.
-          return String.fromCodePoint(0x1d44e + (code - 97));
-        }
-        return char;
-      })
-      .join("");
-  }
-
-  getStoryTextWrapWidth() {
-    const effectiveScaleX = Math.max(Math.abs(this.storyText?.scaleX ?? STORY_TEXT_SCALE), 0.001);
-    return STORY_TEXT_WRAP_VISUAL_WIDTH / effectiveScaleX;
-  }
-
-  getStoryTextColor(speaker) {
-    const speakerToColor = typeof speaker === "string" && speaker.trim() ? speaker : this.playerTurn;
-    const style = CHARACTER_STYLES[this.normalizePlayerTurn(speakerToColor)];
-    return style?.textColor ?? STORY_TEXT_DEFAULT_COLOR;
-  }
-
-  playStorySequence(lines, lineDurationMs, onComplete, options = {}) {
-    if (!Array.isArray(lines) || lines.length === 0) {
-      onComplete?.();
-      return;
-    }
-    if (this.storySequenceTimer) {
-      this.storySequenceTimer.remove(false);
-      this.storySequenceTimer = null;
-    }
-
-    let index = 0;
-    const showLine = () => {
-      this.showStoryText(lines[index], { force: true, speaker: options.speaker ?? null });
-      index += 1;
-      if (index >= lines.length) {
-        this.storySequenceTimer = this.time.delayedCall(lineDurationMs, () => {
-          this.storySequenceTimer = null;
-          onComplete?.();
-        });
-        return;
-      }
-
-      this.storySequenceTimer = this.time.delayedCall(lineDurationMs, showLine);
-    };
-
-    showLine();
+    this.playerStandPlatform?.destroy();
+    this.playerStandPlatform = null;
+    this.characterStandPlatforms?.clear(true, true);
+    this.characterStandColliderAdded = false;
   }
 
   startMusicLoop() {
     if (this.musicStarted) return;
     this.musicStarted = true;
     this.playNextTrack();
+  }
+
+  switchMusicToLight() {
+    if (this.currentMusic) {
+      this.currentMusic.stop();
+      this.currentMusic.destroy();
+      this.currentMusic = null;
+    }
+
+    this.musicStarted = true;
+    const lightIndex = this.musicQueue.indexOf("light");
+    this.musicIndex = lightIndex >= 0 ? lightIndex : 0;
+    this.currentMusic = this.sound.add("light", { volume: 0.35, loop: true });
+    this.currentMusic.play();
   }
 
   playNextTrack() {
@@ -1462,7 +1913,7 @@ const config = {
     },
   },
   scene: [PreloadScene, MainScene],
-  backgroundColor: "#000000",
+  backgroundColor: "#3a2f1f",
   scale: {
     mode: Phaser.Scale.NONE,
   },
